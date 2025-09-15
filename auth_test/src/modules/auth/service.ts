@@ -11,7 +11,7 @@ export class AuthService {
     private jwtService: JWTService
   ) {}
 
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+async login(credentials: LoginCredentials): Promise<AuthResponse> {
   try {
     console.log('🔐 Attempting login for:', credentials.email);
     
@@ -21,95 +21,51 @@ export class AuthService {
       throw new Error('Authentication service unavailable');
     }
 
-    // Consultar primer backend para obtener usuarios
-    console.log('🔄 Fetching users from first app...');
-    let users: UserFromFirstApp[];
+    // ENVÍO 1: Autenticar con la primera app
+    console.log('🔄 Authenticating with first app...');
+    let userFromFirstApp: UserFromFirstApp;
     
     try {
-      users = await this.httpClient.get<UserFromFirstApp[]>('/users');
-      console.log('✅ Users fetched successfully. Count:', users.length);
-    } catch (httpError: any) {
-      console.error('❌ Failed to fetch users from first app:', httpError.message);
-      throw new Error('Cannot connect to user service. Please make sure the first app is running on port 3001');
-    }
-
-    if (users.length === 0) {
-      console.warn('⚠️ No users found in first app database');
-      throw new Error('No users registered in the system');
-    }
-
-    // Buscar usuario por email
-    const userFromFirstApp = users.find(u => u.email === credentials.email);
-    if (!userFromFirstApp) {
-      console.log('❌ User not found with email:', credentials.email);
-      throw new Error('Invalid credentials');
-    }
-
-    console.log('👤 User found in first app:', userFromFirstApp.email);
-    console.log('📝 Password hash from DB:', userFromFirstApp.password.substring(0, 20) + '...');
-    console.log('🔑 Password provided:', credentials.password);
-
-    // Verificar contraseña
-    console.log('🔒 Verifying password...');
-    let isPasswordValid = false;
-    
-    try {
-      // Primero intentamos con bcrypt (si la contraseña está hasheada)
-      isPasswordValid = await bcrypt.compare(credentials.password, userFromFirstApp.password);
-      console.log('✅ Bcrypt comparison result:', isPasswordValid);
+      userFromFirstApp = await this.httpClient.post<UserFromFirstApp>('/users/authenticate', {
+        email: credentials.email,
+        password: credentials.password
+      });
       
-      // Si bcrypt falla, puede ser porque la contraseña no está hasheada
-      if (!isPasswordValid) {
-        console.log('⚠️ Bcrypt failed, trying plain text comparison...');
-        // Fallback: comparación directa (solo para desarrollo)
-        isPasswordValid = credentials.password === userFromFirstApp.password;
-        if (isPasswordValid) {
-          console.warn('⚠️ Using plain password comparison - not secure for production!');
-        } else {
-          console.log('❌ Plain text comparison also failed');
-        }
+      console.log('✅ Authentication successful with first app');
+      console.log('👤 User authenticated:', userFromFirstApp.email);
+      
+    } catch (authError: any) {
+      console.error('❌ Authentication with first app failed:', authError.message);
+      
+      // Si el endpoint nuevo no existe, usar método de fallback
+      if (authError.message.includes('404') || authError.message.includes('Not Found')) {
+        console.log('🔄 Fallback: Using direct user list method...');
+        return await this.loginWithFallbackMethod(credentials);
       }
-    } catch (bcryptError: any) {
-      console.error('❌ Password verification error:', bcryptError.message);
-      // Fallback: comparación directa para contraseñas sin hash
-      isPasswordValid = credentials.password === userFromFirstApp.password;
-      if (isPasswordValid) {
-        console.warn('⚠️ Using plain password comparison due to bcrypt error');
-      } else {
-        console.error('❌ Both bcrypt and plain text comparison failed');
-      }
+      
+      throw new Error('Invalid email or password');
     }
-
-    if (!isPasswordValid) {
-      console.log('❌ Invalid password for user:', credentials.email);
-      throw new Error('Invalid credentials');
-    }
-
-    console.log('✅ Password verified successfully');
 
     // Buscar o crear usuario en la segunda base de datos
     let user = await this.authRepository.findUserByEmail(userFromFirstApp.email);
     
     if (!user) {
       console.log('👥 Creating user in second database...');
-      // Crear usuario en la segunda base de datos
       user = await this.authRepository.createUser({
         email: userFromFirstApp.email,
         name: userFromFirstApp.name,
-        password: userFromFirstApp.password // Guardamos la referencia
+        password: 'external-auth' // No almacenamos la contraseña real
       });
       console.log('✅ User created in second database:', user.email);
     } else {
       console.log('✅ User already exists in second database:', user.email);
       
-      // Actualizar datos del usuario si es necesario
-      if (user.name !== userFromFirstApp.name || user.password !== userFromFirstApp.password) {
-        console.log('🔄 Updating user data in second database...');
+      // Actualizar datos si es necesario
+      if (user.name !== userFromFirstApp.name) {
+        console.log('🔄 Updating user name in second database...');
         user = await this.authRepository.updateUser(user.id, {
-          name: userFromFirstApp.name,
-          password: userFromFirstApp.password
+          name: userFromFirstApp.name
         });
-        console.log('✅ User data updated in second database');
       }
     }
 
@@ -119,21 +75,15 @@ export class AuthService {
 
     // Generar tokens
     console.log('🔑 Generating tokens...');
-    const accessTokenPayload = {
+    const accessToken = this.jwtService.generateAccessToken({
       userId: user.id,
       email: user.email,
       name: user.name
-    };
-    
-    const refreshTokenPayload = {
+    });
+
+    const refreshToken = this.jwtService.generateRefreshToken({
       userId: user.id
-    };
-
-    const accessToken = this.jwtService.generateAccessToken(accessTokenPayload);
-    const refreshToken = this.jwtService.generateRefreshToken(refreshTokenPayload);
-
-    console.log('✅ Access token generated');
-    console.log('✅ Refresh token generated');
+    });
 
     // Guardar refresh token en la base de datos (7 días de expiración)
     const expiresAt = new Date();
@@ -146,7 +96,6 @@ export class AuthService {
       expiresAt
     );
 
-    console.log('✅ Refresh token saved to database');
     console.log('🎉 Login successful for user:', user.email);
     console.log('⏰ Access token expires in: 5 minutes');
     console.log('⏰ Refresh token expires at:', expiresAt.toISOString());
@@ -159,21 +108,16 @@ export class AuthService {
     
   } catch (error: any) {
     console.error('❌ Login process failed:', error.message);
-    console.error('❌ Error stack:', error.stack);
-    
-    // Mensajes de error más específicos para el cliente
-    if (error.message.includes('Cannot connect to user service')) {
-      throw new Error('User service is unavailable. Please try again later.');
-    } else if (error.message.includes('Invalid credentials')) {
-      throw new Error('Invalid email or password');
-    } else if (error.message.includes('No users registered')) {
-      throw new Error('No users registered in the system');
-    } else if (error.message.includes('Authentication service unavailable')) {
-      throw new Error('Authentication service is temporarily unavailable');
-    }
-    
-    throw new Error('Login failed. Please try again later.');
+    throw new Error('Invalid email or password');
   }
+}
+
+// Método de fallback por si el endpoint nuevo no existe
+private async loginWithFallbackMethod(credentials: LoginCredentials): Promise<AuthResponse> {
+  console.log('🔄 Using fallback authentication method...');
+  
+  // Este método ya no funcionará porque la primera app no devuelve passwords
+  throw new Error('Authentication endpoint not available. Please update the first application.');
 }
 
   async refreshToken(refreshToken: string): Promise<AuthResponse> {
