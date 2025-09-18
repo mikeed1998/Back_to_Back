@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '5m';
-const REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
 const JWT_ISSUER = process.env.JWT_ISSUER || 'auth-service';
 
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
@@ -18,25 +17,10 @@ export class JWTService {
     });
   }
 
-  generateRefreshToken(payload: any): string {
-    return jwt.sign(payload, JWT_SECRET, { 
-      expiresIn: REFRESH_TOKEN_EXPIRY,
-      issuer: JWT_ISSUER,
-      audience: 'user-refresh'
-    });
-  }
-
   verifyAccessToken(token: string): any {
     return jwt.verify(token, JWT_SECRET, {
       issuer: JWT_ISSUER,
       audience: 'user-access'
-    });
-  }
-
-  verifyRefreshToken(token: string): any {
-    return jwt.verify(token, JWT_SECRET, {
-      issuer: JWT_ISSUER,
-      audience: 'user-refresh'
     });
   }
 
@@ -51,4 +35,7 @@ export class JWTService {
     }
     return null;
   }
+
+  // Eliminados los métodos de refresh token
+  // ya que ahora se gestionan en el IAM Backend
 }

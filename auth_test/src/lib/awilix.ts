@@ -5,7 +5,6 @@ import { AuthService } from '../modules/auth/service';
 import { HttpClient } from './http-client';
 import { JWTService } from './jwt';
 
-
 const container = createContainer({
   injectionMode: 'CLASSIC'
 });
@@ -13,17 +12,16 @@ const container = createContainer({
 export function setupContainer() {
   const prisma = new PrismaClient();
   
-  // IMPORTANTE: La URL debe incluir el puerto correcto de la primera app
-  const firstAppUrl = process.env.FIRST_APP_URL || 'http://localhost:3001/api/v1';
-  const httpClient = new HttpClient(firstAppUrl);
+  const iamAppUrl = process.env.IAM_APP_URL || 'http://localhost:3001/api/v1';
+  const httpClient = new HttpClient(iamAppUrl);
   const jwtService = new JWTService();
 
-  console.log('🔗 First App URL:', firstAppUrl); // Para debug
+  console.log('🔗 IAM App URL:', iamAppUrl);
 
   container.register({
     prisma: asValue(prisma),
-    httpClient: asValue(httpClient), // ¡Registrar como valor!
-    jwtService: asValue(jwtService), // ¡Registrar como valor!
+    httpClient: asValue(httpClient), 
+    jwtService: asValue(jwtService), 
     authRepository: asClass(AuthRepository),
     authService: asClass(AuthService)
   });

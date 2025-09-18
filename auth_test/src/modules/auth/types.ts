@@ -1,8 +1,9 @@
+
+
 export interface User {
   id: number;
   email: string;
   name: string;
-  password: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,11 +28,20 @@ export interface AuthResponse {
   expires_in: number;
 }
 
-export interface UserFromFirstApp {
+export interface UserFromIAM {
   id: number;
   email: string;
   name: string;
-  password: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// Nueva interfaz para respuesta de validación de IAM
+export interface RefreshTokenValidation {
+  valid: boolean;
+  user?: {
+    id: number;
+    email: string;
+    name: string;
+  };
 }

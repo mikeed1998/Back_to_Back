@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { Type } from '@sinclair/typebox'; // Importar Type aquí
 import { UserService } from './service';
 import * as bcrypt from 'bcrypt';
+import { JWTService } from '../../lib/jwt'; // Import local
+import { RefreshTokenRepository } from './refreshTokenRepository'; // Import local
 import {
     UserSchema,
     CreateUserSchema,
@@ -11,6 +13,8 @@ import {
 
 export async function userRoutes(fastify: FastifyInstance) {
     const userService = fastify.diContainer.resolve<UserService>('userService');
+    const jwtService = fastify.diContainer.resolve<JWTService>('jwtService');
+    const refreshTokenRepo = fastify.diContainer.resolve<RefreshTokenRepository>('refreshTokenRepository');
 
     fastify.get('/users', {
         schema: {
@@ -24,7 +28,6 @@ export async function userRoutes(fastify: FastifyInstance) {
     });
 
 
-// Agrega este nuevo endpoint
 fastify.post('/users/authenticate', {
   schema: {
     body: Type.Object({
@@ -33,11 +36,15 @@ fastify.post('/users/authenticate', {
     }),
     response: {
       200: Type.Object({
-        id: Type.Number(),
-        email: Type.String(),
-        name: Type.String(),
-        createdAt: Type.String({ format: 'date-time' }),
-        updatedAt: Type.String({ format: 'date-time' })
+        user: Type.Object({
+          id: Type.Number(),
+          email: Type.String(),
+          name: Type.String(),
+          createdAt: Type.String(),  // ← Asegurar que es String
+          updatedAt: Type.String()   // ← Asegurar que es String
+        }),
+        refresh_token: Type.String(),
+        expires_in: Type.Number()
       }),
       401: Type.Object({ message: Type.String() })
     }
@@ -45,25 +52,38 @@ fastify.post('/users/authenticate', {
 }, async (request: any, reply) => {
   try {
     const { email, password } = request.body;
-
-    // Buscar usuario por email
     const user = await userService.getUserByEmail(email);
-    if (!user) {
+    
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return reply.code(401).send({ message: 'Invalid credentials' });
     }
 
-    // Verificar contraseña
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return reply.code(401).send({ message: 'Invalid credentials' });
-    }
+    // Generar refresh token
+    const refreshToken = jwtService.generateRefreshToken({
+      userId: user.id,
+      email: user.email
+    });
 
-    // Devolver usuario sin el password por seguridad
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await refreshTokenRepo.createRefreshToken(user.id, refreshToken, expiresAt);
+
+    // ← AQUÍ ESTÁ LA CLAVE: Formatear correctamente la respuesta
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        password: 'aux',
+        createdAt: user.createdAt.toISOString(),  // ← Convertir a string
+        updatedAt: user.updatedAt.toISOString()   // ← Convertir a string
+      },
+      refresh_token: refreshToken,
+      expires_in: 604800 // 7 días en segundos
+    };
 
   } catch (error: any) {
-    console.error('Authentication error:', error);
     return reply.code(401).send({ message: 'Authentication failed' });
   }
 });

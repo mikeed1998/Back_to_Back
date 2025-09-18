@@ -1,8 +1,10 @@
+// src/lib/awilix.ts
 import { createContainer, asClass, asValue } from 'awilix';
 import { PrismaClient } from '@prisma/client';
 import { UserRepository } from '../modules/users/repository';
 import { UserService } from '../modules/users/service';
-
+import { RefreshTokenRepository } from '../modules/users/refreshTokenRepository';
+import { JWTService } from '../lib/jwt'; // Import local
 
 export function setupContainer() {
   const container = createContainer({
@@ -10,12 +12,14 @@ export function setupContainer() {
   });
 
   const prisma = new PrismaClient();
+  const jwtService = new JWTService();
 
-  // Registrar las dependencias
   container.register({
     prisma: asValue(prisma),
+    jwtService: asValue(jwtService),
     userRepository: asClass(UserRepository),
-    userService: asClass(UserService)
+    userService: asClass(UserService),
+    refreshTokenRepository: asClass(RefreshTokenRepository)
   });
 
   return container;
