@@ -1,14 +1,21 @@
 import fastify from 'fastify';
 import { setupContainer } from './lib/awilix';
 import { authRoutes } from './modules/auth/routes';
+import { fastifyCookie } from '@fastify/cookie';
 
 export async function buildApp() {
   const app = fastify({
     logger: {
       level: 'info',
       // Configuración simple sin transport
-      transport: undefined
+      // transport: undefined
     }
+  });
+
+   // Registrar plugin de cookies
+  await app.register(fastifyCookie, {
+    secret: process.env.COOKIE_SECRET || 'your-cookie-secret',
+    hook: 'onRequest'
   });
 
   // Setup dependency injection
