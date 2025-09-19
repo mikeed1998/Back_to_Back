@@ -1,4 +1,3 @@
-// src/lib/awilix.ts
 import { createContainer, asClass, asValue } from 'awilix';
 import { PrismaClient } from '@prisma/client';
 import { UserRepository } from '../modules/users/repository';

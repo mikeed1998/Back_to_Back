@@ -17,13 +17,28 @@ export class JWTService {
 		});
 	}
 
-	verifyAccessToken(token: string): any {
-		return jwt.verify(token, JWT_SECRET, {
-			issuer: JWT_ISSUER,
-			audience: 'user-access'
-		});
-	}
+	// jwt.ts - Con más debugging
+verifyAccessToken(token: string): any {
+    try {
+        console.log('🔐 [JWT] Verifying token with secret:', JWT_SECRET.substring(0, 10) + '...');
+        console.log('📝 [JWT] Token to verify:', token.substring(0, 50) + '...');
+        
+        const payload = jwt.verify(token, JWT_SECRET, {
+            issuer: JWT_ISSUER,
+            audience: 'user-access'
+        });
 
+        console.log('✅ [JWT] Token verified successfully:', payload);
+        return payload;
+        
+    } catch (error: any) {
+        console.error('❌ [JWT] Verification failed:', error.message);
+        if (error.name === 'JsonWebTokenError') {
+            console.error('❌ [JWT] Possible secret mismatch');
+        }
+        throw error;
+    }
+}
 	decodeToken(token: string): any {
 		return jwt.decode(token);
 	}
@@ -35,7 +50,4 @@ export class JWTService {
 		}
 		return null;
 	}
-
-	// Eliminados los métodos de refresh token
-	// ya que ahora se gestionan en el IAM Backend
 }

@@ -100,47 +100,50 @@ export async function authRoutes(fastify: FastifyInstance) {
 		}
 	});
 	// Validar Token (endpoint protegido de ejemplo)
-	fastify.get('/validate', {
-		schema: {
-			headers: Type.Object({
-				authorization: Type.String()
-			}),
-			response: {
-				200: Type.Object({ 
-					valid: Type.Boolean(),
-					user: Type.Object({
-						id: Type.Number(),
-						email: Type.String(),
-						name: Type.String()
-					})
-				}),
-				401: Type.Object({ message: Type.String() })
-			}
-		}
-	}, async (request: any, reply) => {
-		try {
-			const authHeader = request.headers.authorization;
-			if (!authHeader || !authHeader.startsWith('Bearer ')) {
-				return reply.code(401).send({ message: 'Authorization header required' });
-			}
+	// routes.ts - Corregir endpoint /validate
+fastify.get('/validate', {
+    schema: {
+        // ← QUITAR el body schema, es un GET no POST
+        headers: Type.Object({
+            authorization: Type.String()
+        }),
+        response: {
+            200: Type.Object({ 
+                valid: Type.Boolean(),
+                user: Type.Object({
+                    id: Type.Number(),
+                    email: Type.String(),
+                    name: Type.String()
+                })
+            }),
+            401: Type.Object({ message: Type.String() })
+        }
+    }
+}, async (request: any, reply) => {
+    try {
+        const authHeader = request.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return reply.code(401).send({ message: 'Authorization header required' });
+        }
 
-			const token = authHeader.substring(7);
-			const user = await authService.validateAccessToken(token);
+        const token = authHeader.substring(7);
+        const authService = fastify.diContainer.resolve<AuthService>('authService');
+        const user = await authService.validateAccessToken(token);
 
-			if (!user) {
-				return reply.code(401).send({ message: 'Invalid token' });
-			}
+        if (!user) {
+            return reply.code(401).send({ message: 'Invalid token' });
+        }
 
-			return {
-				valid: true,
-				user: {
-				id: user.id,
-				email: user.email,
-				name: user.name
-			}
-		};
-		} catch (error: any) {
-			return reply.code(401).send({ message: error.message });
-		}
-	});
+        return {
+            valid: true,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name
+            }
+        };
+    } catch (error: any) {
+        return reply.code(401).send({ message: error.message });
+    }
+});
 }
