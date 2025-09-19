@@ -29,8 +29,14 @@ export class RefreshTokenRepository {
     }
 
     async deleteExpiredTokens(): Promise<void> {
-		await this.prisma.refreshToken.deleteMany({
-			where: { expiresAt: { lt: new Date() } }
-		});
+      	await this.prisma.refreshToken.deleteMany({
+        	where: { expiresAt: { lt: new Date() } }
+      	});
     }
+
+	async deleteAllUserRefreshTokens(userId: number): Promise<void> {
+		await this.prisma.refreshToken.deleteMany({
+			where: { userId }
+		});
+	}
 }

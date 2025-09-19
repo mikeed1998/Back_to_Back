@@ -23,3 +23,13 @@ export const UpdateUserSchema = Type.Object({
 export const UserParamsSchema = Type.Object({
     id: Type.Number()
 });
+
+export const RefreshTokenValidationResponseSchema = Type.Object({
+    valid: Type.Boolean(),
+    user: Type.Optional(Type.Object({
+        id: Type.Number(),
+        email: Type.String(),
+        name: Type.String()
+    })),  
+    new_refresh_token: Type.Optional(Type.String()) // ← Nuevo campo
+});

@@ -90,59 +90,81 @@ export class AuthService {
 	}
 
 	async refreshToken(refreshToken: string): Promise<AuthResponse> {
-		try {
-			console.log('🔄 Attempting token refresh...');
-			
-			if (!refreshToken) {
-				throw new Error('Refresh token is required');
-			}
+    try {
+        console.log('🔄 Attempting token refresh...');
+        
+        if (!refreshToken) {
+            throw new Error('Refresh token is required');
+        }
 
-			// 1. Validar refresh token con IAM Backend
-			console.log('🔍 Validating refresh token with IAM backend...');
-			const validation = await this.httpClient.post<RefreshTokenValidation>(
-				'/users/validate-refresh-token', 
-				{ refresh_token: refreshToken }
-			);
+        // 1. Validar refresh token con IAM Backend (CON TOKEN ROTATION)
+        console.log('🔍 Validating refresh token with IAM backend...');
+        const validation = await this.httpClient.post<{
+            valid: boolean;
+            user?: { 
+                id: number; 
+                email: string; 
+                name: string 
+            };
+            new_refresh_token?: string; // ← Nuevo campo para token rotation
+        }>('/users/validate-refresh-token', { 
+            refresh_token: refreshToken 
+        });
 
-			if (!validation.valid || !validation.user) {
-				console.log('❌ Refresh token validation failed');
-				throw new Error('Invalid refresh token');
-			}
+        if (!validation.valid || !validation.user) {
+            console.log('❌ Refresh token validation failed');
+            throw new Error('Invalid refresh token');
+        }
 
-			console.log('✅ Refresh token validated successfully');
+        console.log('✅ Refresh token validated successfully');
 
-			// 2. Buscar usuario en base de datos local
-			let user = await this.authRepository.findUserByEmail(validation.user.email);
-			
-			if (!user) {
-				console.log('👥 Creating user from refresh token validation...');
-				user = await this.authRepository.createUser({
-					email: validation.user.email,
-					name: validation.user.name
-				});
-			}
+        // 2. ACTUALIZAR REFRESH TOKEN SI HAY ROTACIÓN
+        let newRefreshToken = refreshToken; // Por defecto, mantener el mismo
+        if (validation.new_refresh_token) {
+            console.log('🔄 Refresh token rotated, using new token');
+            newRefreshToken = validation.new_refresh_token;
+        }
 
-			// 3. Generar nuevo access token
-			console.log('🔑 Generating new access token...');
-			const accessToken = this.jwtService.generateAccessToken({
-				userId: user.id,
-				email: user.email,
-				name: user.name
-			});
+        // 3. Buscar usuario en base de datos local
+        let user = await this.authRepository.findUserByEmail(validation.user.email);
+        
+        if (!user) {
+            console.log('👥 Creating user from refresh token validation...');
+            user = await this.authRepository.createUser({
+                email: validation.user.email,
+                name: validation.user.name
+            });
+        }
 
-			console.log('✅ Token refresh successful for user:', user.email);
+        // 4. Generar nuevo access token
+        console.log('🔑 Generating new access token...');
+        const accessToken = this.jwtService.generateAccessToken({
+            userId: user.id,
+            email: user.email,
+            name: user.name
+        });
 
-			return {
-				access_token: accessToken,
-				refresh_token: refreshToken, // Mantener el mismo refresh token
-				expires_in: 300
-			};
-		
-		} catch (error: any) {
-			console.error('❌ Token refresh failed:', error.message);
-			throw new Error('Token refresh failed: ' + error.message);
-		}
-	}
+        console.log('✅ Token refresh successful for user:', user.email);
+
+        return {
+            access_token: accessToken,
+            refresh_token: newRefreshToken, // ← Devolver nuevo token si hubo rotación
+            expires_in: 300
+        };
+    
+    } catch (error: any) {
+        console.error('❌ Token refresh failed:', error.message);
+        
+        // Mejorar mensajes de error específicos
+        if (error.code === 'ECONNREFUSED') {
+            throw new Error('Authentication service unavailable');
+        } else if (error.response?.status === 401) {
+            throw new Error('Refresh token expired or invalid');
+        } else {
+            throw new Error('Token refresh failed: ' + error.message);
+        }
+    }
+}
 
 	async logout(refreshToken: string): Promise<void> {
 		try {

@@ -13,6 +13,7 @@ export class HttpClient {
 			headers: {
 				'Content-Type': 'application/json',
 			},
+			family: 4,
 		});
 
 		this.setupInterceptors();

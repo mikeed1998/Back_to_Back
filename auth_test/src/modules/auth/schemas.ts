@@ -15,3 +15,4 @@ export const AuthResponseSchema = Type.Object({
     refresh_token: Type.String(),
     expires_in: Type.Number()
 });
+

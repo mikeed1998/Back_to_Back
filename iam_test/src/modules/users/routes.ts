@@ -8,7 +8,8 @@ import {
     UserSchema,
     CreateUserSchema,
     UpdateUserSchema,
-    UserParamsSchema
+    UserParamsSchema,
+    RefreshTokenValidationResponseSchema
 } from './schemas';
 
 
@@ -59,6 +60,8 @@ export async function userRoutes(fastify: FastifyInstance) {
 				return reply.code(401).send({ message: 'Invalid credentials' });
 			}
 
+            await refreshTokenRepo.deleteAllUserRefreshTokens(user.id);
+
 			// Generar refresh token
 			const refreshToken = jwtService.generateRefreshToken({
 				userId: user.id,
@@ -76,7 +79,6 @@ export async function userRoutes(fastify: FastifyInstance) {
 					id: user.id,
 					email: user.email,
 					name: user.name,
-					password: 'aux',
 					createdAt: user.createdAt.toISOString(),  // ← Convertir a string
 					updatedAt: user.updatedAt.toISOString()   // ← Convertir a string
 				},
@@ -155,5 +157,84 @@ export async function userRoutes(fastify: FastifyInstance) {
         } catch (error: any) {
             return reply.code(404).send({ message: 'User not found' });
         }
+    });
+
+    // En routes.ts - agregar este endpoint
+    fastify.post('/users/validate-refresh-token', {
+    schema: {
+        body: Type.Object({
+        refresh_token: Type.String()
+        }),
+        response: {
+        200: RefreshTokenValidationResponseSchema
+        }
+    }
+    }, async (request: any, reply) => {
+    try {
+        const { refresh_token } = request.body;
+        
+        console.log('🔍 Validating refresh token:', refresh_token);
+        
+        // 1. Validar token JWT
+        const payload = jwtService.verifyRefreshToken(refresh_token);
+        console.log('✅ JWT payload:', payload);
+        
+        // 2. Verificar en base de datos
+        const tokenRecord = await refreshTokenRepo.findRefreshToken(refresh_token);
+        console.log('📋 Token record from DB:', tokenRecord);
+        
+        if (!tokenRecord) {
+        console.log('❌ Token not found in database');
+        return { valid: false };
+        }
+        
+        if (tokenRecord.expiresAt < new Date()) {
+        console.log('❌ Token expired:', tokenRecord.expiresAt);
+        // Limpiar token expirado
+        await refreshTokenRepo.deleteRefreshToken(refresh_token);
+        return { valid: false };
+        }
+        
+        // 3. INVALIDAR EL TOKEN USADO (token rotation)
+        console.log('🔄 Invalidating used refresh token');
+        await refreshTokenRepo.deleteRefreshToken(refresh_token);
+        
+        // 4. GENERAR NUEVO REFRESH TOKEN
+        console.log('🔑 Generating new refresh token');
+        const newRefreshToken = jwtService.generateRefreshToken({
+        userId: payload.userId,
+        email: payload.email
+        });
+        
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+        
+        // 5. GUARDAR NUEVO TOKEN EN BD
+        await refreshTokenRepo.createRefreshToken(payload.userId, newRefreshToken, expiresAt);
+        console.log('💾 New refresh token saved to database');
+        
+        // 6. OBTENER INFORMACIÓN DEL USUARIO
+        const user = await userService.getUserById(payload.userId);
+        if (!user) {
+        console.log('❌ User not found');
+        return { valid: false };
+        }
+        
+        console.log('✅ Refresh token validation successful for user:', user.email);
+        
+        return {
+        valid: true,
+        user: {
+            id: user.id,
+            email: user.email,
+            name: user.name
+        },
+        new_refresh_token: newRefreshToken
+        };
+        
+    } catch (error: any) {
+        console.error('❌ Refresh token validation error:', error.message);
+        return { valid: false };
+    }
     });
 }
