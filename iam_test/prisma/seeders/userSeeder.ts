@@ -11,8 +11,8 @@ interface UserData {
 }
 
 async function hashPassword(password: string): Promise<string> {
-  const saltRounds = 10;
-  return bcrypt.hash(password, saltRounds);
+	const saltRounds = 10;
+	return bcrypt.hash(password, saltRounds);
 }
 
 
@@ -53,37 +53,37 @@ export async function seedUsers() {
 
     // Crear usuarios con contraseñas hasheadas
     for (const userData of users) {
-      const hashedPassword = await hashPassword(userData.password);
-      
-      await prisma.user.create({
-        data: {
-          email: userData.email,
-          password: hashedPassword, // Guardar contraseña hasheada
-          name: userData.name
-        }
-      });
-      
-      console.log(`✅ Created user: ${userData.email}`);
+		const hashedPassword = await hashPassword(userData.password);
+		
+		await prisma.user.create({
+			data: {
+				email: userData.email,
+				password: hashedPassword, // Guardar contraseña hasheada
+				name: userData.name
+			}
+		});
+		
+		console.log(`✅ Created user: ${userData.email}`);
     }
 
     console.log('🎉 User seeding completed successfully!');
     
-  } catch (error) {
-    console.error('❌ Error seeding users:', error);
-    throw error;
-  } finally {
-    await prisma.$disconnect();
-  }
+	} catch (error) {
+		console.error('❌ Error seeding users:', error);
+		throw error;
+	} finally {
+		await prisma.$disconnect();
+	}
 }
 
 // Ejecutar el seeder si el archivo es ejecutado directamente
 if (require.main === module) {
-  seedUsers()
-    .catch((error) => {
-      console.error('❌ Seeding failed:', error);
-      process.exit(1);
-    })
-    .finally(() => {
-      process.exit(0);
-    });
+	seedUsers()
+		.catch((error) => {
+			console.error('❌ Seeding failed:', error);
+			process.exit(1);
+		})
+		.finally(() => {
+			process.exit(0);
+		});
 }

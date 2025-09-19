@@ -2,12 +2,11 @@ import { AuthRepository } from './repository';
 import { HttpClient } from '../../lib/http-client';
 import { JWTService } from '../../lib/jwt';
 import { 
-  LoginCredentials, 
-  AuthResponse, 
-  UserFromIAM, 
-  RefreshTokenValidation 
+	LoginCredentials, 
+	AuthResponse, 
+	UserFromIAM, 
+	RefreshTokenValidation 
 } from './types';
-
 
 export class AuthService {
 	constructor(
@@ -37,7 +36,7 @@ export class AuthService {
 			console.log('📧 User email:', authResponse.user?.email);
 			
 			if (!authResponse.user) {
-			throw new Error('No user data received from IAM backend');
+				throw new Error('No user data received from IAM backend');
 			}
 			
 			console.log('✅ Authentication successful with IAM backend');
@@ -155,7 +154,6 @@ export class AuthService {
 		} catch (error: any) {
 			console.error('❌ Token refresh failed:', error.message);
 			
-			// Mejorar mensajes de error específicos
 			if (error.code === 'ECONNREFUSED') {
 				throw new Error('Authentication service unavailable');
 			} else if (error.response?.status === 401) {
@@ -198,8 +196,8 @@ export class AuthService {
 			console.log('📝 [AUTH SERVICE] Token:', accessToken.substring(0, 50) + '...');
 			
 			if (!accessToken) {
-			console.log('❌ No access token provided');
-			return null;
+				console.log('❌ No access token provided');
+				return null;
 			}
 
 			const payload = this.jwtService.verifyAccessToken(accessToken);
@@ -209,8 +207,8 @@ export class AuthService {
 			const user = await this.authRepository.findUserById(payload.userId);
 			
 			if (!user) {
-			console.log('❌ User not found in database for ID:', payload.userId);
-			return null;
+				console.log('❌ User not found in database for ID:', payload.userId);
+				return null;
 			}
 
 			console.log('✅ [AUTH SERVICE] User found:', user.email);

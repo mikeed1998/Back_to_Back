@@ -3,14 +3,12 @@ import { Type } from '@sinclair/typebox';
 import { verifyAccessToken } from '../../lib/auth-hook';
 
 
-// Schema para user response
 const UserSchema = Type.Object({
 	id: Type.Number(),
 	email: Type.String(),
 	name: Type.String()
 });
 
-// Schema para dashboard response  
 const DashboardDataSchema = Type.Object({
 	user: UserSchema,
 	stats: Type.Object({
@@ -22,7 +20,6 @@ const DashboardDataSchema = Type.Object({
 });
 
 export async function protectedRoutes(fastify: FastifyInstance) {
-	// Apply authentication hook to all routes in this module
 	fastify.addHook('onRequest', verifyAccessToken);
 
 	// Home route - Basic protected endpoint

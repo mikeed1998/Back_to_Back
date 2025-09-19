@@ -57,7 +57,4 @@ export class AuthRepository {
 			}
 		});
 	}
-
-	// Eliminados todos los métodos de refresh tokens
-	// ya que ahora se gestionan en el IAM Backend
 }

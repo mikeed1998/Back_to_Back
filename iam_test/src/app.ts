@@ -2,6 +2,7 @@ import fastify from 'fastify';
 import { setupContainer } from './lib/awilix';
 import { userRoutes } from './modules/users/routes';
 
+
 export async function buildApp() { // ¡Hacerla async!
     const app = fastify({
         logger: {

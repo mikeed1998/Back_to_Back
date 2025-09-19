@@ -1,5 +1,6 @@
 import { Type } from '@sinclair/typebox';
 
+
 export const UserSchema = Type.Object({
     id: Type.Number(),
     email: Type.String({ format: 'email' }),
