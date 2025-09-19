@@ -5,26 +5,27 @@ import { AuthService } from '../modules/auth/service';
 import { HttpClient } from './http-client';
 import { JWTService } from './jwt';
 
+
 const container = createContainer({
-  injectionMode: 'CLASSIC'
+  	injectionMode: 'CLASSIC'
 });
 
 export function setupContainer() {
-  const prisma = new PrismaClient();
-  
-  const iamAppUrl = process.env.IAM_APP_URL || 'http://localhost:3001/api/v1';
-  const httpClient = new HttpClient(iamAppUrl);
-  const jwtService = new JWTService();
+	const prisma = new PrismaClient();
+	
+	const iamAppUrl = process.env.IAM_APP_URL || 'http://localhost:3001/api/v1';
+	const httpClient = new HttpClient(iamAppUrl);
+	const jwtService = new JWTService();
 
-  console.log('🔗 IAM App URL:', iamAppUrl);
+	console.log('🔗 IAM App URL:', iamAppUrl);
 
-  container.register({
-    prisma: asValue(prisma),
-    httpClient: asValue(httpClient), 
-    jwtService: asValue(jwtService), 
-    authRepository: asClass(AuthRepository),
-    authService: asClass(AuthService)
-  });
+	container.register({
+		prisma: asValue(prisma),
+		httpClient: asValue(httpClient), 
+		jwtService: asValue(jwtService), 
+		authRepository: asClass(AuthRepository),
+		authService: asClass(AuthService)
+	});
 
-  return container;
+	return container;
 }

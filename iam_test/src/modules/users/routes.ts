@@ -11,6 +11,7 @@ import {
     UserParamsSchema
 } from './schemas';
 
+
 export async function userRoutes(fastify: FastifyInstance) {
     const userService = fastify.diContainer.resolve<UserService>('userService');
     const jwtService = fastify.diContainer.resolve<JWTService>('jwtService');
@@ -28,65 +29,65 @@ export async function userRoutes(fastify: FastifyInstance) {
     });
 
 
-fastify.post('/users/authenticate', {
-  schema: {
-    body: Type.Object({
-      email: Type.String({ format: 'email' }),
-      password: Type.String()
-    }),
-    response: {
-      200: Type.Object({
-        user: Type.Object({
-          id: Type.Number(),
-          email: Type.String(),
-          name: Type.String(),
-          createdAt: Type.String(),  // ← Asegurar que es String
-          updatedAt: Type.String()   // ← Asegurar que es String
-        }),
-        refresh_token: Type.String(),
-        expires_in: Type.Number()
-      }),
-      401: Type.Object({ message: Type.String() })
-    }
-  }
-}, async (request: any, reply) => {
-  try {
-    const { email, password } = request.body;
-    const user = await userService.getUserByEmail(email);
-    
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return reply.code(401).send({ message: 'Invalid credentials' });
-    }
+	fastify.post('/users/authenticate', {
+		schema: {
+			body: Type.Object({
+				email: Type.String({ format: 'email' }),
+				password: Type.String()
+			}),
+			response: {
+				200: Type.Object({
+					user: Type.Object({
+						id: Type.Number(),
+						email: Type.String(),
+						name: Type.String(),
+						createdAt: Type.String(),  // ← Asegurar que es String
+						updatedAt: Type.String()   // ← Asegurar que es String
+					}),
+					refresh_token: Type.String(),
+					expires_in: Type.Number()
+				}),
+				401: Type.Object({ message: Type.String() })
+				}
+			}
+		}, async (request: any, reply) => {
+		try {
+			const { email, password } = request.body;
+			const user = await userService.getUserByEmail(email);
+			
+			if (!user || !(await bcrypt.compare(password, user.password))) {
+				return reply.code(401).send({ message: 'Invalid credentials' });
+			}
 
-    // Generar refresh token
-    const refreshToken = jwtService.generateRefreshToken({
-      userId: user.id,
-      email: user.email
-    });
+			// Generar refresh token
+			const refreshToken = jwtService.generateRefreshToken({
+				userId: user.id,
+				email: user.email
+			});
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+			const expiresAt = new Date();
+			expiresAt.setDate(expiresAt.getDate() + 7);
 
-    await refreshTokenRepo.createRefreshToken(user.id, refreshToken, expiresAt);
+			await refreshTokenRepo.createRefreshToken(user.id, refreshToken, expiresAt);
 
-    // ← AQUÍ ESTÁ LA CLAVE: Formatear correctamente la respuesta
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        password: 'aux',
-        createdAt: user.createdAt.toISOString(),  // ← Convertir a string
-        updatedAt: user.updatedAt.toISOString()   // ← Convertir a string
-      },
-      refresh_token: refreshToken,
-      expires_in: 604800 // 7 días en segundos
-    };
+			// ← AQUÍ ESTÁ LA CLAVE: Formatear correctamente la respuesta
+			return {
+				user: {
+					id: user.id,
+					email: user.email,
+					name: user.name,
+					password: 'aux',
+					createdAt: user.createdAt.toISOString(),  // ← Convertir a string
+					updatedAt: user.updatedAt.toISOString()   // ← Convertir a string
+				},
+				refresh_token: refreshToken,
+				expires_in: 604800 // 7 días en segundos
+			};
 
-  } catch (error: any) {
-    return reply.code(401).send({ message: 'Authentication failed' });
-  }
-});
+		} catch (error: any) {
+			return reply.code(401).send({ message: 'Authentication failed' });
+		}
+	});
 
     fastify.get('/users/:id', {
         schema: {
