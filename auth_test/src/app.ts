@@ -3,13 +3,22 @@ import { setupContainer } from './lib/awilix';
 import { authRoutes } from './modules/auth/routes';
 import { protectedRoutes } from './modules/protected/routes';
 import { fastifyCookie } from '@fastify/cookie';
+import fastifyCors from '@fastify/cors';
 
 
 export async function buildApp() {
     const app = fastify({
         logger: {
             level: 'info',
+            transport: undefined
         }
+    });
+
+    await app.register(fastifyCors, {
+        origin: ['http://localhost:5357', 'http://127.0.0.1:5357'], // URLs permitidas
+        credentials: true, // Permitir cookies y headers de autenticación
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
     });
 
     // Registrar plugin de cookies
