@@ -159,16 +159,15 @@ export async function userRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // En routes.ts - agregar este endpoint
     fastify.post('/users/validate-refresh-token', {
-    schema: {
-        body: Type.Object({
-            refresh_token: Type.String()
-        }),
-        response: {
-            200: RefreshTokenValidationResponseSchema
+        schema: {
+            body: Type.Object({
+                refresh_token: Type.String()
+            }),
+            response: {
+                200: RefreshTokenValidationResponseSchema
+            }
         }
-    }
     }, async (request: any, reply) => {
         try {
             const { refresh_token } = request.body;
@@ -190,30 +189,14 @@ export async function userRoutes(fastify: FastifyInstance) {
             
             if (tokenRecord.expiresAt < new Date()) {
                 console.log('❌ Token expired:', tokenRecord.expiresAt);
-                // Limpiar token expirado
                 await refreshTokenRepo.deleteRefreshToken(refresh_token);
                 return { valid: false };
             }
             
-            // 3. INVALIDAR EL TOKEN USADO (token rotation)
-            console.log('🔄 Invalidating used refresh token');
-            await refreshTokenRepo.deleteRefreshToken(refresh_token);
+            // 3. ✅ ELIMINADO: Token rotation (NO invalidar el token usado)
+            // ✅ MANTENER el mismo refresh token
             
-            // 4. GENERAR NUEVO REFRESH TOKEN
-            console.log('🔑 Generating new refresh token');
-            const newRefreshToken = jwtService.generateRefreshToken({
-                userId: payload.userId,
-                email: payload.email
-            });
-            
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 7);
-            
-            // 5. GUARDAR NUEVO TOKEN EN BD
-            await refreshTokenRepo.createRefreshToken(payload.userId, newRefreshToken, expiresAt);
-            console.log('💾 New refresh token saved to database');
-            
-            // 6. OBTENER INFORMACIÓN DEL USUARIO
+            // 4. OBTENER INFORMACIÓN DEL USUARIO
             const user = await userService.getUserById(payload.userId);
             if (!user) {
                 console.log('❌ User not found');
@@ -228,8 +211,8 @@ export async function userRoutes(fastify: FastifyInstance) {
                     id: user.id,
                     email: user.email,
                     name: user.name
-                },
-                new_refresh_token: newRefreshToken
+                }
+                // ✅ ELIMINADO: new_refresh_token (no más rotación)
             };
             
         } catch (error: any) {

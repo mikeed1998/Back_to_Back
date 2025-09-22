@@ -31,6 +31,5 @@ export const RefreshTokenValidationResponseSchema = Type.Object({
         id: Type.Number(),
         email: Type.String(),
         name: Type.String()
-    })),  
-    new_refresh_token: Type.Optional(Type.String()) // ← Nuevo campo
+    }))
 });

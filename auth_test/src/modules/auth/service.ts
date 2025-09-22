@@ -88,6 +88,7 @@ export class AuthService {
 		}
 	}
 
+	
 	async refreshToken(refreshToken: string): Promise<AuthResponse> {
 		try {
 			console.log('🔄 Attempting token refresh...');
@@ -96,16 +97,12 @@ export class AuthService {
 				throw new Error('Refresh token is required');
 			}
 
-			// 1. Validar refresh token con IAM Backend (CON TOKEN ROTATION)
+			// 1. Validar refresh token con IAM Backend
 			console.log('🔍 Validating refresh token with IAM backend...');
 			const validation = await this.httpClient.post<{
 				valid: boolean;
-				user?: { 
-					id: number; 
-					email: string; 
-					name: string 
-				};
-				new_refresh_token?: string; // ← Nuevo campo para token rotation
+				user?: { id: number; email: string; name: string };
+				// ✅ ELIMINADO: new_refresh_token ya no existe
 			}>('/users/validate-refresh-token', { 
 				refresh_token: refreshToken 
 			});
@@ -117,13 +114,9 @@ export class AuthService {
 
 			console.log('✅ Refresh token validated successfully');
 
-			// 2. ACTUALIZAR REFRESH TOKEN SI HAY ROTACIÓN
-			let newRefreshToken = refreshToken; // Por defecto, mantener el mismo
-			if (validation.new_refresh_token) {
-				console.log('🔄 Refresh token rotated, using new token');
-				newRefreshToken = validation.new_refresh_token;
-			}
-
+			// 2. ✅ SIMPLIFICADO: Siempre usar el mismo refresh token
+			// ❌ ELIMINADO toda la lógica de rotación
+			
 			// 3. Buscar usuario en base de datos local
 			let user = await this.authRepository.findUserByEmail(validation.user.email);
 			
@@ -147,20 +140,13 @@ export class AuthService {
 
 			return {
 				access_token: accessToken,
-				refresh_token: newRefreshToken, // ← Devolver nuevo token si hubo rotación
+				refresh_token: refreshToken, // ✅ SIEMPRE el mismo token
 				expires_in: 300
 			};
 		
 		} catch (error: any) {
 			console.error('❌ Token refresh failed:', error.message);
-			
-			if (error.code === 'ECONNREFUSED') {
-				throw new Error('Authentication service unavailable');
-			} else if (error.response?.status === 401) {
-				throw new Error('Refresh token expired or invalid');
-			} else {
-				throw new Error('Token refresh failed: ' + error.message);
-			}
+			throw new Error('Token refresh failed: ' + error.message);
 		}
 	}
 
