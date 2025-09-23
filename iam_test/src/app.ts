@@ -3,7 +3,7 @@ import { setupContainer } from './lib/awilix';
 import { userRoutes } from './modules/users/routes';
 
 
-export async function buildApp() { // ¡Hacerla async!
+export async function buildApp() { 
     const app = fastify({
         logger: {
             level: 'info',
@@ -11,7 +11,7 @@ export async function buildApp() { // ¡Hacerla async!
         }
     });
 
-    // Setup dependency injection
+    // Dependency injection
     const container = setupContainer();
     app.decorate('diContainer', container);
 
@@ -20,7 +20,6 @@ export async function buildApp() { // ¡Hacerla async!
         return { status: 'OK', timestamp: new Date().toISOString() };
     });
 
-    // Register routes
     app.register(userRoutes, { prefix: '/api/v1' });
 
     return app;

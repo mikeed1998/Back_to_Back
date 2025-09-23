@@ -2,7 +2,6 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { AuthService } from '../modules/auth/service';
 
 
-// auth-hook.ts - Versión corregida
 export async function verifyAccessToken(request: FastifyRequest, reply: FastifyReply) {
     try {
         console.log('🔐 Auth hook triggered');
@@ -16,7 +15,6 @@ export async function verifyAccessToken(request: FastifyRequest, reply: FastifyR
         const token = authHeader.substring(7);
         console.log('🔑 Token received:', token.substring(0, 50) + '...');
         
-        // ← Obtener container del request (ahora debería estar disponible)
         const container = (request as any).diContainer;
         if (!container) {
             console.error('❌ DI Container not found in request');

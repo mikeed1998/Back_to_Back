@@ -25,7 +25,7 @@ async function startServer() {
 		const signals = ['SIGINT', 'SIGTERM'];
 		signals.forEach(signal => {
 			process.on(signal, async () => {
-				console.log(`\n📴 Received ${signal}, shutting down gracefully`);
+				console.log(`\nReceived ${signal}, shutting down gracefully`);
 				await app.close();
 				process.exit(0);
 			});

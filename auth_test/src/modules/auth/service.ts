@@ -19,7 +19,7 @@ export class AuthService {
 		try {
 			console.log('🔐 Attempting login for:', credentials.email);
 			
-			// 1. Autenticar con IAM Backend
+			// Autenticar con IAM Backend
 			console.log('🔄 Authenticating with IAM backend...');
 			const authResponse = await this.httpClient.post<{
 				user: UserFromIAM;
@@ -30,10 +30,10 @@ export class AuthService {
 				password: credentials.password
 			});
 
-			// ← DEBUG: Verificar la respuesta completa
-			console.log('📨 Full response from IAM:', JSON.stringify(authResponse, null, 2));
-			console.log('👤 User from IAM:', authResponse.user);
-			console.log('📧 User email:', authResponse.user?.email);
+			//  Verificar la respuesta completa
+			console.log('Full response from IAM:', JSON.stringify(authResponse, null, 2));
+			console.log('User from IAM:', authResponse.user);
+			console.log('User email:', authResponse.user?.email);
 			
 			if (!authResponse.user) {
 				throw new Error('No user data received from IAM backend');
@@ -42,7 +42,7 @@ export class AuthService {
 			console.log('✅ Authentication successful with IAM backend');
 			console.log('👤 User authenticated:', authResponse.user.email);
 			
-			// 2. Buscar o crear usuario en base de datos local
+			// Buscar o crear usuario en base de datos local
 			let user = await this.authRepository.findUserByEmail(authResponse.user.email);
 			
 			if (!user) {
@@ -64,17 +64,16 @@ export class AuthService {
 				}
 			}
 
-			// 3. Generar access token (5 minutos)
-			console.log('🔑 Generating access token...');
+			console.log('Generating access token...');
 			const accessToken = this.jwtService.generateAccessToken({
 				userId: user.id,
 				email: user.email,
 				name: user.name
 			});
 
-			console.log('🎉 Login successful for user:', user.email);
-			console.log('⏰ Access token expires in: 5 minutes');
-			console.log('⏰ Refresh token expires in:', authResponse.expires_in, 'seconds');
+			console.log('Login successful for user:', user.email);
+			console.log('Access token expires in: 5 minutes');
+			console.log('Refresh token expires in:', authResponse.expires_in, 'seconds');
 			
 			return {
 				access_token: accessToken,
@@ -102,7 +101,6 @@ export class AuthService {
 			const validation = await this.httpClient.post<{
 				valid: boolean;
 				user?: { id: number; email: string; name: string };
-				// ✅ ELIMINADO: new_refresh_token ya no existe
 			}>('/users/validate-refresh-token', { 
 				refresh_token: refreshToken 
 			});
@@ -113,11 +111,7 @@ export class AuthService {
 			}
 
 			console.log('✅ Refresh token validated successfully');
-
-			// 2. ✅ SIMPLIFICADO: Siempre usar el mismo refresh token
-			// ❌ ELIMINADO toda la lógica de rotación
 			
-			// 3. Buscar usuario en base de datos local
 			let user = await this.authRepository.findUserByEmail(validation.user.email);
 			
 			if (!user) {
@@ -128,7 +122,6 @@ export class AuthService {
 				});
 			}
 
-			// 4. Generar nuevo access token
 			console.log('🔑 Generating new access token...');
 			const accessToken = this.jwtService.generateAccessToken({
 				userId: user.id,
@@ -140,7 +133,7 @@ export class AuthService {
 
 			return {
 				access_token: accessToken,
-				refresh_token: refreshToken, // ✅ SIEMPRE el mismo token
+				refresh_token: refreshToken, 
 				expires_in: 300
 			};
 		

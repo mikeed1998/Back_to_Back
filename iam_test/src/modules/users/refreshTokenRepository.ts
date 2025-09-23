@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
+
 export interface RefreshToken {
     id: number;
     token: string;

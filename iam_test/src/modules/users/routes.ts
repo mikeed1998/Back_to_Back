@@ -42,8 +42,8 @@ export async function userRoutes(fastify: FastifyInstance) {
 						id: Type.Number(),
 						email: Type.String(),
 						name: Type.String(),
-						createdAt: Type.String(),  // ← Asegurar que es String
-						updatedAt: Type.String()   // ← Asegurar que es String
+						createdAt: Type.String(),  
+						updatedAt: Type.String()  
 					}),
 					refresh_token: Type.String(),
 					expires_in: Type.Number()
@@ -73,14 +73,13 @@ export async function userRoutes(fastify: FastifyInstance) {
 
 			await refreshTokenRepo.createRefreshToken(user.id, refreshToken, expiresAt);
 
-			// ← AQUÍ ESTÁ LA CLAVE: Formatear correctamente la respuesta
 			return {
 				user: {
 					id: user.id,
 					email: user.email,
 					name: user.name,
-					createdAt: user.createdAt.toISOString(),  // ← Convertir a string
-					updatedAt: user.updatedAt.toISOString()   // ← Convertir a string
+					createdAt: user.createdAt.toISOString(),  
+					updatedAt: user.updatedAt.toISOString()  
 				},
 				refresh_token: refreshToken,
 				expires_in: 604800 // 7 días en segundos
@@ -172,15 +171,15 @@ export async function userRoutes(fastify: FastifyInstance) {
         try {
             const { refresh_token } = request.body;
             
-            console.log('🔍 Validating refresh token:', refresh_token);
+            console.log('Validating refresh token:', refresh_token);
             
             // 1. Validar token JWT
             const payload = jwtService.verifyRefreshToken(refresh_token);
-            console.log('✅ JWT payload:', payload);
+            console.log('JWT payload:', payload);
             
             // 2. Verificar en base de datos
             const tokenRecord = await refreshTokenRepo.findRefreshToken(refresh_token);
-            console.log('📋 Token record from DB:', tokenRecord);
+            console.log('Token record from DB:', tokenRecord);
             
             if (!tokenRecord) {
                 console.log('❌ Token not found in database');
@@ -193,17 +192,14 @@ export async function userRoutes(fastify: FastifyInstance) {
                 return { valid: false };
             }
             
-            // 3. ✅ ELIMINADO: Token rotation (NO invalidar el token usado)
-            // ✅ MANTENER el mismo refresh token
-            
-            // 4. OBTENER INFORMACIÓN DEL USUARIO
+            // OBTENER INFORMACIÓN DEL USUARIO
             const user = await userService.getUserById(payload.userId);
             if (!user) {
                 console.log('❌ User not found');
                 return { valid: false };
             }
             
-            console.log('✅ Refresh token validation successful for user:', user.email);
+            console.log('Refresh token validation successful for user:', user.email);
             
             return {
                 valid: true,
@@ -212,7 +208,6 @@ export async function userRoutes(fastify: FastifyInstance) {
                     email: user.email,
                     name: user.name
                 }
-                // ✅ ELIMINADO: new_refresh_token (no más rotación)
             };
             
         } catch (error: any) {

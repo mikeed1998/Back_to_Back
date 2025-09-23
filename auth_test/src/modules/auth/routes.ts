@@ -99,10 +99,10 @@ export async function authRoutes(fastify: FastifyInstance) {
 			return reply.code(400).send({ message: error.message });
 		}
 	});
+
 	// Validar Token (endpoint protegido de ejemplo)
 	fastify.get('/validate', {
 		schema: {
-			// ← QUITAR el body schema, es un GET no POST
 			headers: Type.Object({
 				authorization: Type.String()
 			}),
