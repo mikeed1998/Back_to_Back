@@ -4,7 +4,7 @@ import { AuthService } from '../modules/auth/service';
 
 export async function verifyAccessToken(request: FastifyRequest, reply: FastifyReply) {
     try {
-        console.log('🔐 Auth hook triggered');
+        console.log('Auth hook triggered');
         
         const authHeader = request.headers.authorization;
         
@@ -13,7 +13,7 @@ export async function verifyAccessToken(request: FastifyRequest, reply: FastifyR
         }
 
         const token = authHeader.substring(7);
-        console.log('🔑 Token received:', token.substring(0, 50) + '...');
+        console.log('Token received:', token.substring(0, 50) + '...');
         
         const container = (request as any).diContainer;
         if (!container) {
@@ -22,10 +22,10 @@ export async function verifyAccessToken(request: FastifyRequest, reply: FastifyR
         }
 
         const authService = container.resolve<AuthService>('authService');
-        console.log('✅ Auth service resolved');
+        console.log('Auth service resolved');
         
         const user = await authService.validateAccessToken(token);
-        console.log('👤 User from validation:', user ? user.email : 'null');
+        console.log('User from validation:', user ? user.email : 'null');
 
         if (!user) {
             console.log('❌ User not found from token');
@@ -33,7 +33,7 @@ export async function verifyAccessToken(request: FastifyRequest, reply: FastifyR
         }
 
         (request as any).user = user;
-        console.log('✅ Authentication successful');
+        console.log('Authentication successful');
 
     } catch (error: any) {
         console.error('❌ Auth hook error:', error.message);

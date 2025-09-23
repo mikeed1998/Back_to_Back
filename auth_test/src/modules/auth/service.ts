@@ -17,10 +17,10 @@ export class AuthService {
 
 	async login(credentials: LoginCredentials): Promise<AuthResponse> {
 		try {
-			console.log('🔐 Attempting login for:', credentials.email);
+			console.log('Attempting login for:', credentials.email);
 			
 			// Autenticar con IAM Backend
-			console.log('🔄 Authenticating with IAM backend...');
+			console.log('Authenticating with IAM backend...');
 			const authResponse = await this.httpClient.post<{
 				user: UserFromIAM;
 				refresh_token: string;
@@ -46,18 +46,18 @@ export class AuthService {
 			let user = await this.authRepository.findUserByEmail(authResponse.user.email);
 			
 			if (!user) {
-				console.log('👥 Creating user in auth database...');
+				console.log('Creating user in auth database...');
 				user = await this.authRepository.createUser({
 					email: authResponse.user.email,
 					name: authResponse.user.name
 				});
-				console.log('✅ User created in auth database:', user.email);
+				console.log('User created in auth database:', user.email);
 			} else {
-				console.log('✅ User already exists in auth database:', user.email);
+				console.log('User already exists in auth database:', user.email);
 				
 				// Actualizar datos si es necesario
 				if (user.name !== authResponse.user.name) {
-					console.log('🔄 Updating user name in auth database...');
+					console.log('Updating user name in auth database...');
 					user = await this.authRepository.updateUser(user.id, {
 						name: authResponse.user.name
 					});
@@ -90,14 +90,14 @@ export class AuthService {
 	
 	async refreshToken(refreshToken: string): Promise<AuthResponse> {
 		try {
-			console.log('🔄 Attempting token refresh...');
+			console.log('Attempting token refresh...');
 			
 			if (!refreshToken) {
 				throw new Error('Refresh token is required');
 			}
 
 			// 1. Validar refresh token con IAM Backend
-			console.log('🔍 Validating refresh token with IAM backend...');
+			console.log('Validating refresh token with IAM backend...');
 			const validation = await this.httpClient.post<{
 				valid: boolean;
 				user?: { id: number; email: string; name: string };
@@ -110,7 +110,7 @@ export class AuthService {
 				throw new Error('Invalid refresh token');
 			}
 
-			console.log('✅ Refresh token validated successfully');
+			console.log('Refresh token validated successfully');
 			
 			let user = await this.authRepository.findUserByEmail(validation.user.email);
 			
@@ -122,14 +122,14 @@ export class AuthService {
 				});
 			}
 
-			console.log('🔑 Generating new access token...');
+			console.log('Generating new access token...');
 			const accessToken = this.jwtService.generateAccessToken({
 				userId: user.id,
 				email: user.email,
 				name: user.name
 			});
 
-			console.log('✅ Token refresh successful for user:', user.email);
+			console.log('Token refresh successful for user:', user.email);
 
 			return {
 				access_token: accessToken,
@@ -145,23 +145,23 @@ export class AuthService {
 
 	async logout(refreshToken: string): Promise<void> {
 		try {
-			console.log('🚪 Attempting logout...');
+			console.log('Attempting logout...');
 			
 			if (!refreshToken) {
 				throw new Error('Refresh token is required');
 			}
 
 			try {
-				console.log('🔄 Invalidating refresh token in IAM backend...');
+				console.log('Invalidating refresh token in IAM backend...');
 				await this.httpClient.delete('/users/invalidate-token', {
 					data: { refresh_token: refreshToken }
 				});
-				console.log('✅ Refresh token invalidated in IAM backend');
+				console.log('Refresh token invalidated in IAM backend');
 			} catch (error) {
-				console.warn('⚠️ Could not invalidate token on IAM backend, proceeding with local logout');
+				console.warn('Could not invalidate token on IAM backend, proceeding with local logout');
 			}
 
-			console.log('✅ Logout successful');
+			console.log('Logout successful');
 		
 		} catch (error: any) {
 			console.error('❌ Logout failed:', error.message);
@@ -171,8 +171,8 @@ export class AuthService {
 
 	async validateAccessToken(accessToken: string): Promise<User | null> {
 		try {
-			console.log('🔐 [AUTH SERVICE] Validating access token');
-			console.log('📝 [AUTH SERVICE] Token:', accessToken.substring(0, 50) + '...');
+			console.log('[AUTH SERVICE] Validating access token');
+			console.log('[AUTH SERVICE] Token:', accessToken.substring(0, 50) + '...');
 			
 			if (!accessToken) {
 				console.log('❌ No access token provided');
@@ -181,7 +181,7 @@ export class AuthService {
 
 			const payload = this.jwtService.verifyAccessToken(accessToken);
 			
-			console.log('✅ [AUTH SERVICE] Token payload received:', payload);
+			console.log('[AUTH SERVICE] Token payload received:', payload);
 			
 			const user = await this.authRepository.findUserById(payload.userId);
 			
@@ -190,7 +190,7 @@ export class AuthService {
 				return null;
 			}
 
-			console.log('✅ [AUTH SERVICE] User found:', user.email);
+			console.log('[AUTH SERVICE] User found:', user.email);
 			return user;
 		} catch (error: any) {
 			console.error('❌ [AUTH SERVICE] Validation failed:', error.message);

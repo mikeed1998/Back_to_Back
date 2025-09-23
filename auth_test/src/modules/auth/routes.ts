@@ -14,7 +14,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 				200: Type.Object({
 					access_token: Type.String(),
 					expires_in: Type.Number()
-					// ← Quitamos refresh_token de la respuesta JSON
+					// Quitamos refresh_token de la respuesta JSON
 				})
 			}
 		}

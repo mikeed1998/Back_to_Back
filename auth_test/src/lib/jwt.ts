@@ -28,7 +28,7 @@ export class JWTService {
 				audience: 'user-access'
 			});
 
-			console.log('✅ [JWT] Token verified successfully:', payload);
+			console.log('[JWT] Token verified successfully:', payload);
 			return payload;
 			
 		} catch (error: any) {
