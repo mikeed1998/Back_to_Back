@@ -1,18 +1,33 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-
+import { useNavigate } from 'react-router-dom';
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const { login, loading, error } = useAuth();
+    const [email, setEmail] = useState<string>('');
+    const [password, setPassword] = useState<string>('');
+    const { user, login, loading, error } = useAuth();
+    const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault();
-    await login(email, password);
-  };
+    const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+        e.preventDefault();
+        const result = await login(email, password);
+        
+        if (result.success) {
+            console.log('✅ [LOGIN] Login successful, redirecting to dashboard');
+            navigate('/dashboard', { replace: true });
+        }
+    };
 
-  return (
+    // Si ya está autenticado, mostrar mensaje de redirección
+    if (user) {
+        return (
+            <div className="redirecting">
+                <p>Redirigiendo al dashboard...</p>
+            </div>
+        );
+    }
+
+    return (
         <div className="login-container">
             <h2>Iniciar Sesión</h2>
             <form onSubmit={handleSubmit} className="login-form">
@@ -24,7 +39,7 @@ const Login: React.FC = () => {
                         type="email"
                         id="email"
                         value={email}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                        onChange={(e) => setEmail(e.target.value)}
                         required
                         disabled={loading}
                     />
@@ -36,7 +51,7 @@ const Login: React.FC = () => {
                         type="password"
                         id="password"
                         value={password}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                        onChange={(e) => setPassword(e.target.value)}
                         required
                         disabled={loading}
                     />

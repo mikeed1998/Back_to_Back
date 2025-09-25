@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { authService } from '../services/auth';
 import { sessionService } from '../services/session';
 import { DashboardData, ApiError } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         fetchDashboardData();
@@ -21,6 +23,8 @@ const Dashboard: React.FC = () => {
             const validSession = await sessionService.ensureValidSession();
             if (!validSession) {
                 setError('Session expired. Please login again.');
+                // Redirigir después de un breve delay
+                setTimeout(() => navigate('/login', { replace: true }), 2000);
                 return;
             }
 
@@ -29,7 +33,12 @@ const Dashboard: React.FC = () => {
             setDashboardData(data);
         } catch (err) {
             const error = err as ApiError;
-            setError(error.message || 'Error al cargar el dashboard');
+            if (error.status === 401) {
+                setError('Session expired. Redirecting to login...');
+                setTimeout(() => navigate('/login', { replace: true }), 2000);
+            } else {
+                setError(error.message || 'Error al cargar el dashboard');
+            }
             console.error('Dashboard error:', error);
         } finally {
             setLoading(false);
