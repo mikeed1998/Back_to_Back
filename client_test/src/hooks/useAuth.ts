@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authService } from '../services/auth';
 import { User, LoginCredentials, ApiError } from '../types';
+import { setCurrentUser, getCurrentUser } from '../services/api';
 
 
 interface UseAuthReturn {
@@ -18,25 +19,29 @@ export const useAuth = (): UseAuthReturn => {
 	const [error, setError] = useState<string | null>(null);
 
 	const checkAuth = useCallback(async (): Promise<void> => {
-		const token = localStorage.getItem('access_token');
-		
-		if (!token) {
-			setLoading(false);
-			return;
-		}
-
 		try {
-			const authData = await authService.validateToken();
-			if (authData.valid && authData.user) {
-				setUser(authData.user);
+			console.log('🔐 [AUTH] Checking authentication status...');
+			
+			const response = await authService.checkSession();
+			console.log('📋 [AUTH] Session check response:', response);
+			
+			if (response.valid && response.user) {
+				console.log('✅ [AUTH] User authenticated:', response.user.email);
+				setUser(response.user);
+				setCurrentUser(response.user);
+				localStorage.setItem('currentUser', JSON.stringify(response.user));
 			} else {
-				localStorage.removeItem('access_token');
+				console.log('❌ [AUTH] User not authenticated');
+				setUser(null);
+				setCurrentUser(null);
+				localStorage.removeItem('currentUser');
 			}
 		} catch (err) {
-			const error = err as ApiError;
-			console.error('Auth check failed:', error);
-			localStorage.removeItem('access_token');
-			setError(error.message || 'La sesión ha expirado');
+			console.error('❌ [AUTH] Auth check failed:', err);
+			setUser(null);
+			setCurrentUser(null);
+			localStorage.removeItem('currentUser');
+			setError('Session validation failed');
 		} finally {
 			setLoading(false);
 		}
@@ -53,15 +58,22 @@ export const useAuth = (): UseAuthReturn => {
 			
 			const credentials: LoginCredentials = { email, password };
 			const response = await authService.login(credentials);
-			localStorage.setItem('access_token', response.access_token);
 			
-			await checkAuth();
+			if (response.user) {
+				setUser(response.user);
+				setCurrentUser(response.user);
+				
+				// ← GUARDAR en localStorage para persistencia
+				localStorage.setItem('currentUser', JSON.stringify(response.user));
+				console.log('💾 [AUTH] User saved to localStorage:', response.user.id);
+			}
 			
 			return { success: true };
 		} catch (err) {
 			const error = err as ApiError;
 			const errorMsg = error.message || 'Error de autenticación';
 			setError(errorMsg);
+			setCurrentUser(null);
 			return { success: false, error: errorMsg };
 		} finally {
 			setLoading(false);

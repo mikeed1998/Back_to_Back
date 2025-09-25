@@ -2,40 +2,33 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { AuthService } from '../modules/auth/service';
 
 
-// auth-hook.ts - Versión corregida
 export async function verifyAccessToken(request: FastifyRequest, reply: FastifyReply) {
     try {
-        console.log('🔐 Auth hook triggered');
+        console.log('🔐 Auth hook triggered for:', request.url);
         
-        const authHeader = request.headers.authorization;
+        // Leer access token de la cookie
+        const accessToken = request.cookies.access_token;
+        console.log('🔑 Access token from cookie:', accessToken ? 'PRESENT' : 'MISSING');
         
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return reply.code(401).send({ message: 'Authorization header required' });
+        if (!accessToken) {
+            console.log('❌ No access token in cookies');
+            return reply.code(401).send({ message: 'Access token required' });
         }
 
-        const token = authHeader.substring(7);
-        console.log('🔑 Token received:', token.substring(0, 50) + '...');
-        
-        // ← Obtener container del request (ahora debería estar disponible)
         const container = (request as any).diContainer;
-        if (!container) {
-            console.error('❌ DI Container not found in request');
-            return reply.code(500).send({ message: 'Internal server error' });
-        }
-
         const authService = container.resolve<AuthService>('authService');
-        console.log('✅ Auth service resolved');
         
-        const user = await authService.validateAccessToken(token);
-        console.log('👤 User from validation:', user ? user.email : 'null');
-
+        console.log('🔐 Validating access token...');
+        const user = await authService.validateAccessToken(accessToken);
+        
         if (!user) {
-            console.log('❌ User not found from token');
+            console.log('❌ Invalid access token, trying to refresh...');
+            // Aquí deberías intentar renovar el token usando el refresh token
             return reply.code(401).send({ message: 'Invalid or expired token' });
         }
 
+        console.log('✅ Access token valid for user:', user.email);
         (request as any).user = user;
-        console.log('✅ Authentication successful');
 
     } catch (error: any) {
         console.error('❌ Auth hook error:', error.message);

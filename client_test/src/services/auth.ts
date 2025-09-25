@@ -2,16 +2,19 @@ import api from './api';
 import { 
     LoginCredentials, 
     AuthResponse, 
-    TokenValidationResponse, 
     DashboardData, 
-    ProtectedData,
     User 
 } from '../types';
 
+export interface SessionResponse {
+    valid: boolean;
+    user?: User;
+    access_token?: string;
+}
 
 export const authService = {
-    login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-        const response = await api.post<AuthResponse>('/auth/login', credentials);
+    login: async (credentials: LoginCredentials): Promise<AuthResponse & { user: User }> => {
+        const response = await api.post<AuthResponse & { user: User }>('/auth/login', credentials);
         return response.data;
     },
 
@@ -21,17 +24,12 @@ export const authService = {
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
-            localStorage.removeItem('access_token');
+            localStorage.removeItem('currentUser');
         }
     },
 
-    validateToken: async (): Promise<TokenValidationResponse> => {
-        const response = await api.get<TokenValidationResponse>('/auth/validate');
-        return response.data;
-    },
-
-    getProtectedData: async (): Promise<ProtectedData> => {
-        const response = await api.get<ProtectedData>('/home');
+    checkSession: async (): Promise<SessionResponse> => {
+        const response = await api.get<SessionResponse>('/auth/session');
         return response.data;
     },
 

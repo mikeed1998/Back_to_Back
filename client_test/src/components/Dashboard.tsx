@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authService } from '../services/auth';
+import { sessionService } from '../services/session';
 import { DashboardData, ApiError } from '../types';
-
 
 const Dashboard: React.FC = () => {
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -15,6 +15,16 @@ const Dashboard: React.FC = () => {
     const fetchDashboardData = async (): Promise<void> => {
         try {
             setLoading(true);
+            setError(null);
+
+            // Verificar sesión primero
+            const validSession = await sessionService.ensureValidSession();
+            if (!validSession) {
+                setError('Session expired. Please login again.');
+                return;
+            }
+
+            // Obtener datos del dashboard
             const data = await authService.getDashboardData();
             setDashboardData(data);
         } catch (err) {
@@ -27,7 +37,7 @@ const Dashboard: React.FC = () => {
     };
 
     if (loading) return <div>Cargando dashboard...</div>;
-    if (error) return <div className="error-message">{error}</div>;
+    if (error) return <div className="error-message">Error: {error}</div>;
 
     return (
         <div className="dashboard">

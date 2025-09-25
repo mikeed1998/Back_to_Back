@@ -4,6 +4,8 @@ import { AuthRepository } from '../modules/auth/repository';
 import { AuthService } from '../modules/auth/service';
 import { HttpClient } from './http-client';
 import { JWTService } from './jwt';
+import { RefreshTokenRepository } from '../modules/auth/refreshTokenRepository';
+import { IamMappingRepository } from '../modules/auth/IamMappingRepository';
 
 
 const container = createContainer({
@@ -24,7 +26,9 @@ export function setupContainer() {
 		httpClient: asValue(httpClient), 
 		jwtService: asValue(jwtService), 
 		authRepository: asClass(AuthRepository),
-		authService: asClass(AuthService)
+		authService: asClass(AuthService),
+		refreshTokenRepository: asClass(RefreshTokenRepository),
+		iamMappingRepository: asClass(IamMappingRepository)
 	});
 
 	return container;

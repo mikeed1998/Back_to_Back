@@ -14,11 +14,16 @@ export async function buildApp() {
         }
     });
 
+    // app.addHook('onRoute', (routeOptions) => {
+    //     console.log('Registering route:', routeOptions.method, routeOptions.url);
+    //     console.log('Schema:', JSON.stringify(routeOptions.schema, null, 2));
+    // });
+
     await app.register(fastifyCors, {
         origin: ['http://localhost:5357', 'http://127.0.0.1:5357'], // URLs permitidas
         credentials: true, // Permitir cookies y headers de autenticación
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-User-ID'],
     });
 
     // Registrar plugin de cookies

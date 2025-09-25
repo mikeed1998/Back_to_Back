@@ -10,11 +10,39 @@ datasource db {
 }
 
 model User {
-	id        Int      @id @default(autoincrement())
-	email     String   @unique
-	name      String  
-	createdAt DateTime @default(now())
-	updatedAt DateTime @updatedAt
+    id        Int      @id @default(autoincrement())
+    email     String   @unique
+    name      String  
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    
+    refreshTokens RefreshToken[]
+    iamMapping    IamUserMapping? // ← Nueva relación
+    
+    @@map("users")
+}
 
-	@@map("users")
+// Nueva tabla para mapeo de IDs
+model IamUserMapping {
+    id         Int      @id @default(autoincrement())
+    iamUserId  Int      @unique // ID del usuario en IAM Backend
+    authUserId Int      @unique // ID del usuario en Auth Backend
+    user       User     @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+    createdAt  DateTime @default(now())
+    
+    @@unique([iamUserId, authUserId])
+    @@map("iam_user_mappings")
+}
+
+model RefreshToken {
+    id        Int      @id @default(autoincrement())
+    token     String   @db.VarChar(512)
+    userId    Int
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+    
+    @@index([token])
+    @@unique([userId])
+    @@map("refresh_tokens")
 }
