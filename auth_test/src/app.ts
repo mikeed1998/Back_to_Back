@@ -23,7 +23,11 @@ export async function buildApp() {
         origin: ['http://localhost:5357', 'http://127.0.0.1:5357'], // URLs permitidas
         credentials: true, // Permitir cookies y headers de autenticación
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-User-ID'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-User-ID', 'X-Renewal-Attempt'],
+        exposedHeaders: [
+            'Content-Type',
+            'Authorization'
+        ]
     });
 
     // Registrar plugin de cookies
@@ -56,6 +60,8 @@ export async function buildApp() {
     // Register routes
     app.register(authRoutes, { prefix: '/api/v1/auth' });
     app.register(protectedRoutes, { prefix: '/api/v1' });
+
+    
 
     return app;
 }

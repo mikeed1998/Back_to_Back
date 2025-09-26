@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
-const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '5m';
+const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '2m';
 const JWT_ISSUER = process.env.JWT_ISSUER || 'auth-service';
 
 if (!JWT_SECRET || JWT_SECRET.length < 32) {

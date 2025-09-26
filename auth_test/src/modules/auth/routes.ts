@@ -13,6 +13,9 @@ export async function authRoutes(fastify: FastifyInstance) {
     const authService = fastify.diContainer.resolve<AuthService>('authService');
     const jwtService = fastify.diContainer.resolve<JWTService>('jwtService');
     const refreshTokenRepo = fastify.diContainer.resolve<RefreshTokenRepository>('refreshTokenRepository');
+    const iamMappingRepository = fastify.diContainer.resolve('iamMappingRepository');
+    const refreshTokenRepository = fastify.diContainer.resolve('refreshTokenRepository');
+    const httpClient = fastify.diContainer.resolve('httpClient');
 
     // Login endpoint - SCHEMA SIMPLIFICADO
     fastify.post('/login', {
@@ -35,20 +38,22 @@ export async function authRoutes(fastify: FastifyInstance) {
 				httpOnly: true,
 				secure: process.env.NODE_ENV === 'production',
 				sameSite: 'strict',
-				maxAge: 5 * 60 * 1000, // 5 minutos
+				maxAge: 2 * 60 * 1000, // 5 minutos
 				path: '/'
 			});
 
 			console.log('📤 Sending response to client:', {
 				access_token: result.access_token.substring(0, 50) + '...',
-				expires_in: result.expires_in,
+				// expires_in: result.expires_in,
+                expires_in: 120,
 				user: result.user
 			});
 
 			// ← Devolver user info en JSON (sin refresh_token)
 			return {
 				access_token: result.access_token,
-				expires_in: result.expires_in,
+				// expires_in: result.expires_in,
+                expires_in: 120,
 				user: result.user // ← User info para el frontend
 			};
 
@@ -56,6 +61,75 @@ export async function authRoutes(fastify: FastifyInstance) {
 			return reply.code(401).send({ message: error.message });
 		}
 	});
+
+// ✅ AGREGAR ESTE ENDPOINT EN AUTH BACKEND
+fastify.post('/renew-token', {
+    schema: {
+        response: {
+            200: Type.Object({
+                access_token: Type.String(),
+                expires_in: Type.Number(),
+                refresh_token_updated: Type.Boolean()
+            }),
+            401: Type.Object({ message: Type.String() })
+        }
+    }
+}, async (request: any, reply) => {
+    try {
+        console.log('🔄 [AUTH] /renew-token endpoint called');
+        
+        const userIdHeader = request.headers['x-user-id'];
+        if (!userIdHeader) {
+            return reply.code(401).send({ message: 'User ID required' });
+        }
+
+        const iamUserId = parseInt(userIdHeader);
+        console.log('👤 [AUTH] Renewing token for user:', iamUserId);
+
+        // 1. Convertir IAM User ID a Auth User ID
+        const authUserId = await iamMappingRepository.findAuthUserIdByIamId(iamUserId);
+        if (!authUserId) {
+            return reply.code(401).send({ message: 'User not found' });
+        }
+
+        // 2. Buscar refresh token
+        const refreshTokenRecord = await refreshTokenRepo.findRefreshTokenByUserId(authUserId);
+        if (!refreshTokenRecord) {
+            return reply.code(401).send({ message: 'No active session' });
+        }
+
+        // 3. Llamar a IAM Backend para renovación
+        const renewalResponse = await httpClient.post<{
+            access_token: string;
+            refresh_token: string;
+            expires_in: number;
+            refresh_token_updated: boolean;
+        }>('/users/renew-tokens', {
+            refresh_token: refreshTokenRecord.token
+        });
+
+        console.log('✅ [AUTH] Token renewal successful');
+
+        // 4. Actualizar cookie
+        reply.setCookie('access_token', renewalResponse.access_token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 2 * 60 * 1000, // 2 minutos
+            path: '/'
+        });
+
+        return {
+            access_token: renewalResponse.access_token,
+            expires_in: renewalResponse.expires_in,
+            refresh_token_updated: renewalResponse.refresh_token_updated
+        };
+
+    } catch (error: any) {
+        console.error('❌ [AUTH] Renew token error:', error.message);
+        return reply.code(401).send({ message: 'Token renewal failed' });
+    }
+});
 
     // Session endpoint - SCHEMA CORREGIDO
 fastify.get('/session', {
@@ -150,7 +224,7 @@ fastify.get('/session', {
                                 httpOnly: true,
                                 secure: process.env.NODE_ENV === 'production',
                                 sameSite: 'strict',
-                                maxAge: 5 * 60 * 1000,
+                                maxAge: 2 * 60 * 1000,
                                 path: '/'
                             });
 
@@ -272,4 +346,7 @@ fastify.get('/session', {
             return reply.code(401).send({ message: error.message });
         }
     });
+
+
+
 }

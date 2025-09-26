@@ -97,6 +97,8 @@ export const useAuth = (): UseAuthReturn => {
             setCurrentUser(null);
             setError(null);
             localStorage.removeItem('currentUser');
+            // Detener el auto-refresh al hacer logout
+            autoRefreshService.stopAutoRefresh();
         }
     };
 

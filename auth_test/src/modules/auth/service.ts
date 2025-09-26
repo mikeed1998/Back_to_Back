@@ -8,6 +8,7 @@ import {
 	UserFromIAM, 
 	RefreshTokenValidation
 } from './types';
+import { IamMappingRepository } from './IamMappingRepository';
 
 
 export class AuthService {
@@ -20,54 +21,83 @@ export class AuthService {
 	) {}
 
 	async login(credentials: LoginCredentials): Promise<AuthResponse & { user: any }> {
-        try {
-            console.log('🔐 Attempting login for:', credentials.email);
-            
-            // 1. Autenticar con IAM Backend
-            const iamResponse = await this.httpClient.post<{
-                user: UserFromIAM;
-                access_token: string;
-                refresh_token: string;
-                expires_in: number;
-            }>('/users/authenticate', credentials);
+    try {
+        console.log('🔐 Attempting login for:', credentials.email);
+        
+        // 1. Autenticar con IAM Backend
+        const iamResponse = await this.httpClient.post<{
+            user: UserFromIAM;
+            access_token: string;
+            refresh_token: string;
+            expires_in: number;
+        }>('/users/authenticate', credentials);
 
-            console.log('✅ Authentication successful with IAM backend');
-            console.log('👤 IAM User ID:', iamResponse.user.id);
+        console.log('✅ Authentication successful with IAM backend');
+        console.log('👤 IAM User ID:', iamResponse.user.id);
+        
+        // 2. Buscar mapeo existente
+        const existingAuthId = await this.iamMappingRepository.findAuthUserIdByIamId(iamResponse.user.id);
+        let user;
+        
+        if (existingAuthId) {
+            // Usuario ya existe en Auth Backend
+            console.log('🔍 Found existing mapping, Auth User ID:', existingAuthId);
+            user = await this.authRepository.findUserById(existingAuthId);
             
-            // 2. Buscar mapeo existente
-            const existingAuthId = await this.iamMappingRepository.findAuthUserIdByIamId(iamResponse.user.id);
-            let user;
+            if (!user) {
+                throw new Error('User mapping exists but user not found');
+            }
             
-            if (existingAuthId) {
-                // Usuario ya existe en Auth Backend
-                console.log('🔍 Found existing mapping, Auth User ID:', existingAuthId);
-                user = await this.authRepository.findUserById(existingAuthId);
-                
-                if (!user) {
-                    throw new Error('User mapping exists but user not found');
-                }
-                
-                // Actualizar datos si es necesario
-                if (user.name !== iamResponse.user.name || user.email !== iamResponse.user.email) {
-                    user = await this.authRepository.updateUser(user.id, {
-                        name: iamResponse.user.name,
-                        email: iamResponse.user.email
-                    });
-                }
-            } else {
-                // Nuevo usuario - crear en Auth Backend
-                console.log('👥 Creating new user in auth database...');
-                user = await this.authRepository.createUser({
-                    email: iamResponse.user.email,
-                    name: iamResponse.user.name
+            // Actualizar datos si es necesario
+            if (user.name !== iamResponse.user.name || user.email !== iamResponse.user.email) {
+                user = await this.authRepository.updateUser(user.id, {
+                    name: iamResponse.user.name,
+                    email: iamResponse.user.email
                 });
-                
-                // Crear mapeo de IDs
-                console.log('🔄 Creating IAM mapping:', iamResponse.user.id, '→', user.id);
-                await this.iamMappingRepository.createMapping(iamResponse.user.id, user.id);
             }
 
-            // 3. Guardar refresh token en BD local
+            // 3. VERIFICAR SI YA EXISTE UN REFRESH TOKEN VÁLIDO
+            const existingRefreshToken = await this.refreshTokenRepository.findRefreshTokenByUserId(user.id);
+            if (existingRefreshToken) {
+                console.log('🔑 Existing refresh token found, validating...');
+                
+                try {
+                    // Validar el refresh token existente con IAM
+                    const validation = await this.httpClient.post<{
+                        valid: boolean;
+                    }>('/users/validate-refresh-token', { 
+                        refresh_token: existingRefreshToken.token 
+                    });
+
+                    if (validation.valid) {
+                        console.log('✅ Existing refresh token is still valid, REUSING IT');
+                        
+                        // USAR EL REFRESH TOKEN EXISTENTE en lugar del nuevo
+                        iamResponse.refresh_token = existingRefreshToken.token;
+                    } else {
+                        console.log('⚠️ Existing refresh token invalid, using new one');
+                    }
+                } catch (error) {
+                    console.log('⚠️ Error validating existing token, using new one');
+                }
+            }
+        } else {
+            // Nuevo usuario - crear en Auth Backend
+            console.log('👥 Creating new user in auth database...');
+            user = await this.authRepository.createUser({
+                email: iamResponse.user.email,
+                name: iamResponse.user.name
+            });
+            
+            // Crear mapeo de IDs
+            console.log('🔄 Creating IAM mapping:', iamResponse.user.id, '→', user.id);
+            await this.iamMappingRepository.createMapping(iamResponse.user.id, user.id);
+        }
+
+        // 4. SOLO actualizar refresh token si es diferente al existente
+        const existingToken = await this.refreshTokenRepository.findRefreshTokenByUserId(user.id);
+        if (!existingToken || existingToken.token !== iamResponse.refresh_token) {
+            console.log('💾 Saving/updating refresh token in database...');
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 7);
             
@@ -76,27 +106,30 @@ export class AuthService {
                 iamResponse.refresh_token, 
                 expiresAt
             );
-
-            console.log('✅ Login process completed successfully');
-
-            return {
-                access_token: iamResponse.access_token,
-                refresh_token: iamResponse.refresh_token,
-                expires_in: iamResponse.expires_in,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                    createdAt: user.createdAt,
-                    updatedAt: user.updatedAt
-                }
-            };
-            
-        } catch (error: any) {
-            console.error('❌ Login process failed:', error.message);
-            throw new Error('Invalid email or password');
+        } else {
+            console.log('✅ Refresh token unchanged, skipping database update');
         }
+
+        console.log('✅ Login process completed successfully');
+
+        return {
+            access_token: iamResponse.access_token,
+            refresh_token: iamResponse.refresh_token,
+            expires_in: iamResponse.expires_in,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt
+            }
+        };
+        
+    } catch (error: any) {
+        console.error('❌ Login process failed:', error.message);
+        throw new Error('Invalid email or password');
     }
+}
 
     async validateAccessToken(accessToken: string): Promise<User | null> {
         try {
@@ -129,28 +162,86 @@ export class AuthService {
     }
 
     // Modificar también validateSession para usar el mapeo
-    async validateSession(userId?: number): Promise<{ valid: boolean; user?: User; access_token?: string }> {
-        try {
-            if (!userId) return { valid: false };
+    // Reemplazar el método validateSession existente
+async validateSession(userId?: number, credentials?: LoginCredentials): Promise<{ 
+    valid: boolean; 
+    user?: User; 
+    access_token?: string;
+    needsReauthentication?: boolean;
+}> {
+    try {
+        if (!userId) return { valid: false };
 
-            console.log('🔍 Checking session for user ID:', userId);
-            
-            // Convertir IAM User ID a Auth User ID
-            const authUserId = await this.iamMappingRepository.findAuthUserIdByIamId(userId);
-            
-            if (!authUserId) {
-                console.log('❌ No mapping found for IAM User ID:', userId);
-                return { valid: false };
-            }
-            
-            // Resto del código igual...
-            const refreshTokenRecord = await this.refreshTokenRepository.findRefreshTokenByUserId(authUserId);
-            // ... continuar con la validación
-        } catch (error) {
-            console.error('❌ Session validation error:', error);
+        console.log('🔍 [SESSION] Validating session for user ID:', userId);
+        
+        // Convertir IAM User ID a Auth User ID
+        const authUserId = await this.iamMappingRepository.findAuthUserIdByIamId(userId);
+        
+        if (!authUserId) {
+            console.log('❌ [SESSION] No mapping found for IAM User ID:', userId);
             return { valid: false };
         }
+        
+        const refreshTokenRecord = await this.refreshTokenRepository.findRefreshTokenByUserId(authUserId);
+        
+        if (!refreshTokenRecord) {
+            console.log('❌ [SESSION] No refresh token found for user');
+            return { valid: false };
+        }
+
+        // Validar refresh token con IAM
+        const validation = await this.httpClient.post<{
+            valid: boolean;
+            payload?: { userId: number; email: string };
+        }>('/users/validate-refresh-token', { 
+            refresh_token: refreshTokenRecord.token 
+        });
+
+        if (validation.valid && validation.payload) {
+            console.log('✅ [SESSION] Refresh token valid');
+            
+            // Generar nuevo access token
+            const newAccessToken = this.jwtService.generateAccessToken({
+                userId: validation.payload.userId,
+                email: validation.payload.email
+            });
+
+            const user = await this.authRepository.findUserById(authUserId);
+            
+            if (user) {
+                return {
+                    valid: true,
+                    user: user,
+                    access_token: newAccessToken
+                };
+            }
+        } else {
+            console.log('⚠️ [SESSION] Refresh token invalid, attempting renewal...');
+            
+            // Intentar renovar con credenciales si están disponibles
+            if (credentials) {
+                const renewedTokens = await this.handleExpiredRefreshToken(authUserId, credentials);
+                if (renewedTokens) {
+                    return {
+                        valid: true,
+                        user: renewedTokens.user,
+                        access_token: renewedTokens.access_token
+                    };
+                }
+            }
+            
+            return { 
+                valid: false, 
+                needsReauthentication: true 
+            };
+        }
+        
+        return { valid: false };
+    } catch (error) {
+        console.error('❌ [SESSION] Session validation error:', error);
+        return { valid: false };
     }
+}
 	
 	async refreshToken(refreshToken: string): Promise<AuthResponse> {
     try {
@@ -247,6 +338,52 @@ export class AuthService {
 		}
 	}
 
+    // Agregar en la clase AuthService en service.ts
+async handleExpiredRefreshToken(authUserId: number, credentials?: LoginCredentials): Promise<AuthResponse | null> {
+    try {
+        console.log('🔄 [EXPIRED REFRESH] Handling expired refresh token');
+        
+        if (!credentials) {
+            // Si no tenemos credenciales, no podemos renovar
+            throw new Error('Credentials required to renew expired refresh token');
+        }
+
+        // 1. Re-autenticar con IAM Backend para obtener nuevos tokens
+        const iamResponse = await this.httpClient.post<{
+            user: UserFromIAM;
+            access_token: string;
+            refresh_token: string;
+            expires_in: number;
+        }>('/users/authenticate', credentials);
+
+        console.log('✅ [EXPIRED REFRESH] Re-authentication successful');
+
+        // 2. Actualizar refresh token en BD
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 días
+        
+        await this.refreshTokenRepository.createOrUpdateRefreshToken(
+            authUserId, 
+            iamResponse.refresh_token, 
+            expiresAt
+        );
+
+        console.log('✅ [EXPIRED REFRESH] Refresh token updated in database');
+
+        return {
+            access_token: iamResponse.access_token,
+            refresh_token: iamResponse.refresh_token,
+            expires_in: iamResponse.expires_in,
+            user: await this.authRepository.findUserById(authUserId) as User
+        };
+
+    } catch (error: any) {
+        console.error('❌ [EXPIRED REFRESH] Failed to handle expired refresh token:', error);
+        throw error;
+    }
+    
+}
+
 	// async validateAccessToken(accessToken: string): Promise<User | null> {
 	// 	try {
 	// 		console.log('🔐 [AUTH SERVICE] Validating access token');
@@ -276,4 +413,64 @@ export class AuthService {
 	// 		return null;
 	// 	}
 	// }
+
+    // Agregar este método en AuthService
+async automaticTokenRenewal(authUserId: number): Promise<{ 
+    access_token: string; 
+    refresh_token?: string;
+    success: boolean;
+}> {
+    try {
+        console.log('🔄 [AUTO-RENEW] Starting automatic token renewal at:', new Date().toISOString());
+        
+        // 1. Obtener refresh token de la base de datos
+        const refreshTokenRecord = await this.refreshTokenRepository.findRefreshTokenByUserId(authUserId);
+        if (!refreshTokenRecord) {
+            throw new Error('No refresh token found');
+        }
+
+        // 2. Obtener IAM User ID del mapeo
+        const iamUserId = await this.iamMappingRepository.findIamUserIdByAuthId(authUserId);
+        if (!iamUserId) {
+            throw new Error('No IAM mapping found');
+        }
+
+        // 3. Llamar a IAM Backend para renovación
+        const renewalResponse = await this.httpClient.post<{
+            access_token: string;
+            refresh_token: string;
+            expires_in: number;
+            refresh_token_updated: boolean;
+        }>('/users/renew-tokens', {
+            refresh_token: refreshTokenRecord.token
+        });
+
+        console.log('✅ [AUTO-RENEW] Token renewal successful');
+
+        // 4. SOLO actualizar refresh token en BD si fue renovado
+        if (renewalResponse.refresh_token_updated) {
+            console.log('💾 Updating refresh token in database...');
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7);
+            
+            await this.refreshTokenRepository.createOrUpdateRefreshToken(
+                authUserId,
+                renewalResponse.refresh_token,
+                expiresAt
+            );
+        }
+
+        console.log('✅ [AUTO-RENEW] Token renewal completed at:', new Date().toISOString());
+
+        return {
+            access_token: renewalResponse.access_token,
+            refresh_token: renewalResponse.refresh_token_updated ? renewalResponse.refresh_token : undefined,
+            success: true
+        };
+
+    } catch (error: any) {
+        console.error('❌ [AUTO-RENEW] Automatic renewal failed:', error.message);
+        return { success: false, access_token: '' };
+    }
+}
 }

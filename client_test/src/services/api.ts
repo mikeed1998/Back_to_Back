@@ -3,6 +3,8 @@ import { ApiError, User } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3002/api/v1';
 
+let renewalInProgress = false;
+
 interface CustomAxiosRequestConfig extends AxiosRequestConfig {
     _retry?: boolean;
 }
@@ -30,35 +32,66 @@ const api: AxiosInstance = axios.create({
 });
 
 // Interceptor para agregar headers a las requests
-api.interceptors.request.use(
-    (config: AxiosRequestConfig): AxiosRequestConfig => {
-        // Obtener usuario de localStorage
-        let user: User | null = null;
-        
-        try {
-            const userData = localStorage.getItem('currentUser');
-            if (userData) {
-                user = JSON.parse(userData);
-                console.log('👤 [API] User from localStorage:', user?.id);
-            }
-        } catch (error) {
-            console.error('Error parsing user data:', error);
-        }
-        
-        if (user && user.id && config.headers) {
-            config.headers['X-User-ID'] = user.id.toString();
-            console.log('📤 [API] Adding X-User-ID header:', user.id);
-        } else {
-            console.log('📤 [API] No user ID available for header');
-        }
-        
-        return config;
+// Reemplazar el interceptor de response en api.ts
+api.interceptors.response.use(
+    (response: AxiosResponse): AxiosResponse => {
+        console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+        return response;
     },
-    (error: AxiosError): Promise<AxiosError> => {
+    async (error: AxiosError<ApiError>) => {
+        const originalRequest = error.config as CustomAxiosRequestConfig;
+        
+        console.log(`❌ API Error: ${error.response?.status} ${originalRequest?.url}`);
+        
+        if (error.response?.status === 401) {
+            console.log('🔐 Unauthorized access detected');
+            
+            if (originalRequest._retry) {
+                console.log('❌ Token refresh already attempted, redirecting to login');
+                window.location.href = '/login';
+                return Promise.reject(error);
+            }
+            
+            originalRequest._retry = true;
+            
+            try {
+                console.log('🔄 Attempting to renew token...');
+                
+                // Obtener usuario actual para el header
+                const currentUser = getCurrentUser();
+                if (!currentUser) {
+                    throw new Error('No user data available');
+                }
+                
+                // Intentar renovar el token
+                const renewResponse = await api.post<{
+                    access_token: string;
+                    expires_in: number;
+                }>('/auth/renew-token', {}, {
+                    headers: {
+                        'X-User-ID': currentUser.id.toString()
+                    }
+                });
+                
+                console.log('✅ Token renewed successfully');
+                
+                // Actualizar la request original con el nuevo token
+                if (originalRequest.headers) {
+                    originalRequest.headers['X-User-ID'] = currentUser.id.toString();
+                }
+                
+                return api(originalRequest);
+                
+            } catch (renewError) {
+                console.error('❌ Token renewal failed:', renewError);
+                console.log('🔐 Redirecting to login page...');
+                window.location.href = '/login';
+            }
+        }
+        
         return Promise.reject(error);
     }
 );
-
 // Interceptor para manejar respuestas
 api.interceptors.response.use(
     (response: AxiosResponse): AxiosResponse => {
@@ -114,5 +147,39 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+export const proactivelyRenewToken = async (): Promise<boolean> => {
+    if (renewalInProgress) return true;
+    
+    try {
+        renewalInProgress = true;
+        const currentUser = getCurrentUser();
+        
+        if (!currentUser) {
+            console.log('❌ [PROACTIVE RENEW] No user data available');
+            return false;
+        }
+        
+        console.log('🔄 [PROACTIVE RENEW] Proactively renewing token...');
+        
+        const response = await api.post<{
+            access_token: string;
+            expires_in: number;
+        }>('/auth/renew-token', {}, {
+            headers: {
+                'X-User-ID': currentUser.id.toString()
+            }
+        });
+        
+        console.log('✅ [PROACTIVE RENEW] Token renewed successfully');
+        return true;
+        
+    } catch (error) {
+        console.error('❌ [PROACTIVE RENEW] Failed to renew token:', error);
+        return false;
+    } finally {
+        renewalInProgress = false;
+    }
+};
 
 export default api;

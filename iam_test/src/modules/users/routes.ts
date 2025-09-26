@@ -99,7 +99,7 @@ export async function userRoutes(fastify: FastifyInstance) {
                 },
                 access_token: accessToken,
                 refresh_token: refreshToken,
-                expires_in: 300
+                expires_in: 120
             };
 
         } catch (error: any) {
@@ -175,46 +175,165 @@ export async function userRoutes(fastify: FastifyInstance) {
         }
     });
 
+  // Modificar el endpoint de validación para soportar renovación
     fastify.post('/users/validate-refresh-token', {
+        schema: {
+            body: Type.Object({
+                refresh_token: Type.String(),
+                require_renewal: Type.Optional(Type.Boolean()) // Nuevo parámetro
+            }),
+            response: {
+                200: Type.Object({
+                    valid: Type.Boolean(),
+                    needs_renewal: Type.Optional(Type.Boolean()),
+                    payload: Type.Optional(Type.Object({
+                        userId: Type.Number(),
+                        email: Type.String()
+                    }))
+                })
+            }
+        }
+    }, async (request: any, reply) => {
+        try {
+            const { refresh_token, require_renewal } = request.body;
+            
+            console.log('🔐 [IAM] Validating refresh token format');
+            
+            try {
+                const payload = jwt.verify(refresh_token, process.env.JWT_SECRET!);
+                const isNearExpiry = isTokenNearExpiry(payload);
+                
+                console.log('✅ [IAM] Token validation successful');
+                
+                return {
+                    valid: true,
+                    needs_renewal: require_renewal && isNearExpiry,
+                    payload: {
+                        userId: (payload as any).userId,
+                        email: (payload as any).email
+                    }
+                };
+                
+            } catch (error: any) {
+                if (error.name === 'TokenExpiredError') {
+                    console.log('⚠️ [IAM] Refresh token expired');
+                    return { 
+                        valid: false,
+                        needs_renewal: true 
+                    };
+                }
+                throw error;
+            }
+            
+        } catch (error: any) {
+            console.error('❌ [IAM] Token validation failed:', error.message);
+            return { 
+                valid: false 
+            };
+        }
+    });
+
+    // Función auxiliar para verificar si el token está próximo a expirar
+    // Agregar nuevo endpoint en IAM BACKEND
+fastify.post('/users/renew-tokens', {
     schema: {
         body: Type.Object({
             refresh_token: Type.String()
         }),
         response: {
             200: Type.Object({
-                valid: Type.Boolean(),
-                payload: Type.Optional(Type.Object({
-                    userId: Type.Number(),
-                    email: Type.String()
-                }))
-            })
+                access_token: Type.String(),
+                refresh_token: Type.String(), // SOLO si es necesario renovar
+                expires_in: Type.Number(),
+                refresh_token_updated: Type.Boolean()
+            }),
+            401: Type.Object({ message: Type.String() })
         }
     }
 }, async (request: any, reply) => {
     try {
         const { refresh_token } = request.body;
         
-        console.log('🔐 [IAM] Validating refresh token format');
-        console.log('📝 [IAM] Token:', refresh_token.substring(0, 50) + '...');
+        console.log('🔄 [IAM] Renewing tokens...');
         
-        // Validar formato JWT
-        const payload = jwt.verify(refresh_token, process.env.JWT_SECRET!);
+        // Verificar si el refresh token es válido
+        let payload;
+        try {
+            payload = jwt.verify(refresh_token, process.env.JWT_SECRET!);
+        } catch (error: any) {
+            if (error.name === 'TokenExpiredError') {
+                console.log('⚠️ [IAM] Refresh token expired, cannot renew');
+                return reply.code(401).send({ message: 'Refresh token expired' });
+            }
+            throw error;
+        }
+
+        const userId = (payload as any).userId;
+        const userEmail = (payload as any).email;
         
-        console.log('✅ [IAM] Token validation successful:', payload);
+        console.log(`👤 [IAM] Renewing tokens for user: ${userEmail}`);
+        
+        // Verificar si el refresh token está próximo a expirar (menos de 24 horas)
+        const isRefreshTokenNearExpiry = isTokenNearExpiry(payload, 24 * 60 * 60 * 1000); // 24 horas
+        
+        let newRefreshToken = refresh_token;
+        let refreshTokenUpdated = false;
+
+        // SOLO generar nuevo refresh token si está próximo a expirar
+        if (isRefreshTokenNearExpiry) {
+            console.log('🔄 [IAM] Refresh token near expiry, generating new one...');
+            newRefreshToken = jwt.sign(
+                { 
+                    userId: userId, 
+                    email: userEmail 
+                },
+                process.env.JWT_SECRET!,
+                { 
+                    expiresIn: '7d',
+                    audience: 'user-access',
+                    issuer: 'auth-service',
+                }
+            );
+            refreshTokenUpdated = true;
+            console.log('✅ [IAM] New refresh token generated');
+        }
+
+        // Siempre generar nuevo access token
+        const newAccessToken = jwt.sign(
+            { 
+                userId: userId, 
+                email: userEmail 
+            }, 
+            process.env.JWT_SECRET!, 
+            { 
+                expiresIn: '2m', 
+                audience: 'user-access',
+                issuer: 'auth-service',
+            }
+        );
+
+        console.log('✅ [IAM] Token renewal completed');
         
         return {
-            valid: true,
-            payload: {
-                userId: (payload as any).userId,
-                email: (payload as any).email
-            }
+            access_token: newAccessToken,
+            refresh_token: newRefreshToken,
+            expires_in: 120, // 5 minutos
+            refresh_token_updated: refreshTokenUpdated
         };
-        
+
     } catch (error: any) {
-        console.error('❌ [IAM] Token validation failed:', error.message);
-        return { 
-            valid: false 
-        };
+        console.error('❌ [IAM] Token renewal failed:', error.message);
+        return reply.code(401).send({ message: 'Token renewal failed' });
     }
 });
+
+// Función auxiliar para verificar expiración próxima
+function isTokenNearExpiry(payload: any, bufferMs: number = 24 * 60 * 60 * 1000): boolean {
+    if (!payload.exp) return false;
+    
+    const expiryTime = payload.exp * 1000; // Convertir a milisegundos
+    const currentTime = Date.now();
+    
+    return (expiryTime - currentTime) < bufferMs;
+}
 }
