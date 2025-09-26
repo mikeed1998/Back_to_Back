@@ -83,7 +83,7 @@ export async function userRoutes(fastify: FastifyInstance) {
                 },
                 process.env.JWT_SECRET!,
                 { 
-                    expiresIn: '7d',
+                    expiresIn: '10m',
                     audience: 'user-access',
                     issuer: 'auth-service',
                 }
@@ -289,7 +289,7 @@ fastify.post('/users/renew-tokens', {
                 },
                 process.env.JWT_SECRET!,
                 { 
-                    expiresIn: '7d',
+                    expiresIn: '10m',
                     audience: 'user-access',
                     issuer: 'auth-service',
                 }
