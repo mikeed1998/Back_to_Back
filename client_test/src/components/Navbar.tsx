@@ -8,7 +8,6 @@ const Navbar: React.FC = () => {
 
     const handleLogout = async () => {
         await logout();
-        // La redirección se maneja en el hook logout
     };
 
     const goToDashboard = () => {

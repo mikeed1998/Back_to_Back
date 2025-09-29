@@ -22,7 +22,6 @@ const DashboardDataSchema = Type.Object({
 export async function protectedRoutes(fastify: FastifyInstance) {
 	fastify.addHook('onRequest', verifyAccessToken);
 
-	// Home route - Basic protected endpoint
 	fastify.get('/home', {
 		schema: {
 			response: {
@@ -42,7 +41,6 @@ export async function protectedRoutes(fastify: FastifyInstance) {
 		};
 	});
 
-	// Dashboard route - With more data
 	fastify.get('/dashboard', {
 		schema: {
 			response: {
@@ -51,7 +49,6 @@ export async function protectedRoutes(fastify: FastifyInstance) {
 			}
 		}
 	}, async (request: any, reply) => {
-		// Simular datos del dashboard
 		const stats = {
 			loginCount: Math.floor(Math.random() * 100) + 1,
 			lastLogin: new Date().toISOString(),
@@ -71,7 +68,6 @@ export async function protectedRoutes(fastify: FastifyInstance) {
 		};
 	});
 
-	// User profile route
 	fastify.get('/profile', {
 		schema: {
 			response: {
@@ -97,7 +93,6 @@ export async function protectedRoutes(fastify: FastifyInstance) {
 		};
 	});
 
-	// Admin route (example with additional permissions)
 	fastify.get('/admin', {
 		schema: {
 			response: {
@@ -113,7 +108,6 @@ export async function protectedRoutes(fastify: FastifyInstance) {
 			}
 		}
 	}, async (request: any, reply) => {
-		// Ejemplo de verificación de rol (deberías implementar roles en tu sistema)
 		if (request.user.email !== 'admin@example.com') {
 			return reply.code(403).send({ message: 'Admin access required' });
 		}

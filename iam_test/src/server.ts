@@ -6,9 +6,8 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 async function startServer() {
     try {
-        const app = await buildApp(); // ¡Falta el await aquí!
+        const app = await buildApp(); 
 
-        // Manejar cierre graceful
         const signals = ['SIGINT', 'SIGTERM'];
         signals.forEach(signal => {
             process.on(signal, async () => {
@@ -18,7 +17,6 @@ async function startServer() {
             });
         });
 
-        // Iniciar servidor
         await app.listen({ port: Number(PORT), host: HOST });
         console.log(`✅ First app server running on http://${HOST}:${PORT}`);
         

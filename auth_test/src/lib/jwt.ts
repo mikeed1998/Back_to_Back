@@ -17,28 +17,28 @@ export class JWTService {
 		});
 	}
 
-	// jwt.ts - Con más debugging
-verifyAccessToken(token: string): any {
-    try {
-        console.log('🔐 [JWT] Verifying token with secret:', JWT_SECRET.substring(0, 10) + '...');
-        console.log('📝 [JWT] Token to verify:', token.substring(0, 50) + '...');
-        
-        const payload = jwt.verify(token, JWT_SECRET, {
-            issuer: JWT_ISSUER,
-            audience: 'user-access'
-        });
+	verifyAccessToken(token: string): any {
+		try {
+			console.log('🔐 [JWT] Verifying token with secret:', JWT_SECRET.substring(0, 10) + '...');
+			console.log('📝 [JWT] Token to verify:', token.substring(0, 50) + '...');
+			
+			const payload = jwt.verify(token, JWT_SECRET, {
+				issuer: JWT_ISSUER,
+				audience: 'user-access'
+			});
 
-        console.log('✅ [JWT] Token verified successfully:', payload);
-        return payload;
-        
-    } catch (error: any) {
-        console.error('❌ [JWT] Verification failed:', error.message);
-        if (error.name === 'JsonWebTokenError') {
-            console.error('❌ [JWT] Possible secret mismatch');
-        }
-        throw error;
-    }
-}
+			console.log('✅ [JWT] Token verified successfully:', payload);
+			return payload;
+			
+		} catch (error: any) {
+			console.error('❌ [JWT] Verification failed:', error.message);
+			if (error.name === 'JsonWebTokenError') {
+				console.error('❌ [JWT] Possible secret mismatch');
+			}
+			throw error;
+		}
+	}
+	
 	decodeToken(token: string): any {
 		return jwt.decode(token);
 	}

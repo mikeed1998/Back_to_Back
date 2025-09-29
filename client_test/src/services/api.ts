@@ -9,10 +9,8 @@ interface CustomAxiosRequestConfig extends AxiosRequestConfig {
     _retry?: boolean;
 }
 
-// Variable global para almacenar el usuario actual
 let currentUser: User | null = null;
 
-// ← CORREGIR: Exportar las funciones
 export const setCurrentUser = (user: User | null) => {
     currentUser = user;
     console.log('👤 [API] Current user set to:', user?.id);
@@ -22,7 +20,6 @@ export const getCurrentUser = (): User | null => {
     return currentUser;
 };
 
-// Crear instancia de axios
 const api: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
     headers: {
@@ -31,8 +28,6 @@ const api: AxiosInstance = axios.create({
     withCredentials: true,
 });
 
-// Interceptor para agregar headers a las requests
-// Reemplazar el interceptor de response en api.ts
 api.interceptors.response.use(
     (response: AxiosResponse): AxiosResponse => {
         console.log(`✅ API Response: ${response.status} ${response.config.url}`);
@@ -57,13 +52,11 @@ api.interceptors.response.use(
             try {
                 console.log('🔄 Attempting to renew token...');
                 
-                // Obtener usuario actual para el header
                 const currentUser = getCurrentUser();
                 if (!currentUser) {
                     throw new Error('No user data available');
                 }
                 
-                // Intentar renovar el token
                 const renewResponse = await api.post<{
                     access_token: string;
                     expires_in: number;
@@ -75,7 +68,6 @@ api.interceptors.response.use(
                 
                 console.log('✅ Token renewed successfully');
                 
-                // Actualizar la request original con el nuevo token
                 if (originalRequest.headers) {
                     originalRequest.headers['X-User-ID'] = currentUser.id.toString();
                 }
@@ -92,7 +84,7 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
-// Interceptor para manejar respuestas
+
 api.interceptors.response.use(
     (response: AxiosResponse): AxiosResponse => {
         console.log(`✅ API Response: ${response.status} ${response.config.url}`);

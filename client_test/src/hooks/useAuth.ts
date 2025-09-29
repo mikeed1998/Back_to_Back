@@ -21,7 +21,6 @@ export const useAuth = (): UseAuthReturn => {
         try {
             console.log('🔐 [AUTH] Checking authentication status...');
             
-            // Verificar si hay usuario en localStorage primero
             const storedUser = localStorage.getItem('currentUser');
             if (storedUser) {
                 const parsedUser = JSON.parse(storedUser);

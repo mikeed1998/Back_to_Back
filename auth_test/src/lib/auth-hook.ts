@@ -23,7 +23,6 @@ export async function verifyAccessToken(request: FastifyRequest, reply: FastifyR
         
         if (!user) {
             console.log('❌ Invalid access token, trying to refresh...');
-            // Aquí deberías intentar renovar el token usando el refresh token
             return reply.code(401).send({ message: 'Invalid or expired token' });
         }
 

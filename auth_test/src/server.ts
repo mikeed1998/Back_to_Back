@@ -1,6 +1,6 @@
 import { buildApp } from './app';
 
-// Validar variables de entorno requeridas
+
 const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL', 'FIRST_APP_URL'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
@@ -21,7 +21,6 @@ async function startServer() {
 	try {
 		const app = await buildApp();
 
-		// Manejar cierre graceful
 		const signals = ['SIGINT', 'SIGTERM'];
 		signals.forEach(signal => {
 			process.on(signal, async () => {

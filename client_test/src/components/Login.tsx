@@ -18,7 +18,6 @@ const Login: React.FC = () => {
         }
     };
 
-    // Si ya está autenticado, mostrar mensaje de redirección
     if (user) {
         return (
             <div className="redirecting">

@@ -16,7 +16,7 @@ export interface LoginCredentials {
 export interface AuthResponse {
     access_token: string;
     expires_in: number;
-    user: User; // ← Agregar user aquí
+    user: User;
 }
 
 export interface SessionResponse {

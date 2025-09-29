@@ -12,31 +12,29 @@ import './index.css';
 const App: React.FC = () => {
     const { user, loading } = useAuth();
 
-    // En App.tsx, agregar useEffect para monitoring
-useEffect(() => {
-    if (user) {
-        console.log('🔐 [APP] User authenticated, starting auto-refresh service (2min cycle)');
-        autoRefreshService.startAutoRefresh();
-        
-        // Opcional: Log cada minuto el estado del servicio
-        const monitorInterval = setInterval(() => {
-            const status = autoRefreshService.getStatus();
-            console.log('📊 [APP] Auto-refresh status:', status);
-        }, 60000);
-        
+    useEffect(() => {
+        if (user) {
+            console.log('🔐 [APP] User authenticated, starting auto-refresh service (2min cycle)');
+            autoRefreshService.startAutoRefresh();
+            
+            const monitorInterval = setInterval(() => {
+                const status = autoRefreshService.getStatus();
+                console.log('📊 [APP] Auto-refresh status:', status);
+            }, 60000);
+            
+            return () => {
+                autoRefreshService.stopAutoRefresh();
+                clearInterval(monitorInterval);
+            };
+        } else {
+            console.log('🔐 [APP] No user, stopping auto-refresh service');
+            autoRefreshService.stopAutoRefresh();
+        }
+
         return () => {
             autoRefreshService.stopAutoRefresh();
-            clearInterval(monitorInterval);
         };
-    } else {
-        console.log('🔐 [APP] No user, stopping auto-refresh service');
-        autoRefreshService.stopAutoRefresh();
-    }
-
-    return () => {
-        autoRefreshService.stopAutoRefresh();
-    };
-}, [user]);
+    }, [user]);
 
     console.log('🔐 [APP] Auth state - User:', user?.email, 'Loading:', loading);
 

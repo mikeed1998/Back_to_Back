@@ -3,12 +3,10 @@
 generator client {
   	provider = "prisma-client-js"
 }
-
 datasource db {
 	provider = "mysql"
 	url      = env("DATABASE_URL")
 }
-
 model User {
     id        Int      @id @default(autoincrement())
     email     String   @unique
@@ -21,12 +19,10 @@ model User {
     
     @@map("users")
 }
-
-// Nueva tabla para mapeo de IDs
 model IamUserMapping {
     id         Int      @id @default(autoincrement())
-    iamUserId  Int      @unique // ID del usuario en IAM Backend
-    authUserId Int      @unique // ID del usuario en Auth Backend
+    iamUserId  Int      @unique 
+    authUserId Int      @unique 
     user       User     @relation(fields: [authUserId], references: [id], onDelete: Cascade)
     createdAt  DateTime @default(now())
     

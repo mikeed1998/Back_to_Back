@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { UserRepository } from '../modules/users/repository';
 import { UserService } from '../modules/users/service';
 import { RefreshTokenRepository } from '../modules/users/refreshTokenRepository';
-import { JWTService } from '../lib/jwt'; // Import local
+import { JWTService } from '../lib/jwt'; 
 
 
 export function setupContainer() {

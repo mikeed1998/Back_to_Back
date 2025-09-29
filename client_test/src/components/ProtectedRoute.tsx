@@ -12,7 +12,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     const [redirecting, setRedirecting] = useState(false);
 
     useEffect(() => {
-        // Solo redirigir si no está cargando y no hay usuario
         if (!loading && !user && !redirecting) {
             console.log('🚫 [PROTECTED ROUTE] Access denied, redirecting to login');
             setRedirecting(true);

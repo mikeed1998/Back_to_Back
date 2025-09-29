@@ -19,16 +19,13 @@ const Dashboard: React.FC = () => {
             setLoading(true);
             setError(null);
 
-            // Verificar sesión primero
             const validSession = await sessionService.ensureValidSession();
             if (!validSession) {
                 setError('Session expired. Please login again.');
-                // Redirigir después de un breve delay
                 setTimeout(() => navigate('/login', { replace: true }), 2000);
                 return;
             }
 
-            // Obtener datos del dashboard
             const data = await authService.getDashboardData();
             setDashboardData(data);
         } catch (err) {

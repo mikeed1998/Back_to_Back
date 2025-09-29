@@ -4,7 +4,6 @@ import { User } from './types';
 export class AuthRepository {
 	constructor(private prisma: PrismaClient) {}
 
-	// User methods (solo operaciones básicas, sin refresh tokens)
 	async findUserById(id: number): Promise<User | null> {
 		return this.prisma.user.findUnique({ 
 			where: { id },
