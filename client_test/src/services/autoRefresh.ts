@@ -6,11 +6,11 @@ class AutoRefreshService {
     private isRenewing = false;
     private failureCount = 0;
     private readonly maxFailures = 5;
-    private readonly renewalIntervalMs = 90 * 1000; 
+    private readonly renewalIntervalMs = 14 * 60 * 1000; 
 
     startAutoRefresh(): void {
         console.log('🔄 [AUTO-REFRESH] ===== STARTING SERVICE =====');
-        console.log(`⏰ [AUTO-REFRESH] Will renew every ${this.renewalIntervalMs/1000} seconds`);
+        console.log(`⏰ [AUTO-REFRESH] Will renew every ${this.renewalIntervalMs/1000/60} seconds`);
         
         this.stopAutoRefresh();
         
@@ -19,7 +19,7 @@ class AutoRefreshService {
         }, this.renewalIntervalMs);
         
         console.log('🚀 [AUTO-REFRESH] First renewal in 30 seconds...');
-        setTimeout(() => this.attemptRenewal(), 30000);
+        setTimeout(() => this.attemptRenewal(), 60000);
     }
 
     stopAutoRefresh(): void {
@@ -32,116 +32,68 @@ class AutoRefreshService {
     }
 
     private async attemptRenewal(): Promise<void> {
-    if (this.isRenewing) {
-        console.log('⏳ [AUTO-REFRESH] Already renewing, skipping...');
-        return;
-    }
-
-    const user = getCurrentUser();
-    if (!user?.id) {
-        console.log('❌ [AUTO-REFRESH] No user ID available');
-        this.stopAutoRefresh();
-        return;
-    }
-
-    this.isRenewing = true;
-    
-    try {
-        console.log(`🔄 [AUTO-REFRESH] Renewing token for user ${user.id}...`);
-        
-        const response = await api.post<{
-            access_token: string;
-            expires_in: number;
-        }>('/auth/renew-token', {}, {
-            headers: { 
-                'X-User-ID': user.id.toString()
-            }
-        });
-
-        this.failureCount = 0; 
-        console.log('✅ [AUTO-REFRESH] Token renewed successfully!');
-        
-    } catch (error: any) {
-        this.failureCount++;
-        
-        if (error.response?.data?.requires_login) {
-            console.log('🔐 [AUTO-REFRESH] Session expired, stopping service');
-            this.stopAutoRefresh();
-            localStorage.removeItem('currentUser');
-            setCurrentUser(null);
-            window.location.href = '/login';
+        if (this.isRenewing) {
+            console.log('⏳ [AUTO-REFRESH] Already renewing, skipping...');
             return;
         }
-        
-        console.error('❌ [AUTO-REFRESH] Error:', error.message);
-        
-        if (this.shouldForceLogout()) {
-            this.handleCriticalFailure();
+
+        const user = getCurrentUser();
+        if (!user?.id) {
+            console.log('❌ [AUTO-REFRESH] No user ID available');
+            this.stopAutoRefresh();
+            return;
         }
-    } finally {
-        this.isRenewing = false;
-    }
-}
 
-    // private async attemptRenewal(): Promise<void> {
-    //     if (this.isRenewing) {
-    //         console.log('⏳ [AUTO-REFRESH] Already renewing, skipping...');
-    //         return;
-    //     }
+        // const shouldRenew = await this.shouldRenewToken();
+        // if (!shouldRenew) {
+        //     console.log('⏰ [AUTO-REFRESH] Token still valid, skipping renewal');
+        //     return;
+        // }
 
-    //     const user = getCurrentUser();
-    //     if (!user?.id) {
-    //         console.log('❌ [AUTO-REFRESH] No user ID available');
-    //         this.stopAutoRefresh();
-    //         return;
-    //     }
-
-    //     this.isRenewing = true;
+        this.isRenewing = true;
         
-    //     try {
-    //         console.log(`🔄 [AUTO-REFRESH] Renewing token for user ${user.id}...`);
+        try {
+            console.log(`🔄 [AUTO-REFRESH] Renewing token for user ${user.id}...`);
             
-    //         const response = await api.post<{
-    //             access_token: string;
-    //             expires_in: number;
-    //             refresh_token_updated: boolean;
-    //         }>('/auth/renew-token', {}, {
-    //             headers: { 
-    //                 'X-User-ID': user.id.toString()
-    //                 // 'X-Renewal-Attempt': this.failureCount.toString()
-    //             }
-    //         });
+            const response = await api.post<{
+                access_token: string;
+                expires_in: number;
+            }>('/auth/renew-token', {}, {
+                headers: { 
+                    'X-User-ID': user.id.toString()
+                }
+            });
 
-    //         this.failureCount = 0; 
-    //         console.log('✅ [AUTO-REFRESH] Token renewed successfully!');
+            this.failureCount = 0; 
+            console.log('✅ [AUTO-REFRESH] Token renewed successfully!');
             
-    //     } catch (error: any) {
-    //         this.failureCount++;
+        } catch (error: any) {
+            this.failureCount++;
             
-    //         if (error.response) {
-    //             if (error.response.status === 404) {
-    //                 console.error('❌ [AUTO-REFRESH] Endpoint not found (404)');
-    //                 console.log('💡 [AUTO-REFRESH] Checking if endpoint exists...');
-    //                 this.checkEndpointExists();
-    //             } else {
-    //                 console.error(`❌ [AUTO-REFRESH] Server error: ${error.response.status}`);
-    //             }
-    //         } else if (error.code === 'ECONNREFUSED') {
-    //             console.error('❌ [AUTO-REFRESH] Cannot connect to server');
-    //         } else {
-    //             console.error('❌ [AUTO-REFRESH] Error:', error.message);
-    //         }
+            if (error.response?.data?.requires_login) {
+                console.log('🔐 [AUTO-REFRESH] Session expired, stopping service');
+                this.stopAutoRefresh();
+                localStorage.removeItem('currentUser');
+                setCurrentUser(null);
+                window.location.href = '/login';
+                return;
+            }
+            
+            console.error('❌ [AUTO-REFRESH] Error:', error.message);
+            
+            if (this.shouldForceLogout()) {
+                this.handleCriticalFailure();
+            }
+        } finally {
+            this.isRenewing = false;
+        }
+    }
 
-    //         if (this.shouldForceLogout()) {
-    //             console.error('🚨 [AUTO-REFRESH] Critical failure detected');
-    //             this.handleCriticalFailure();
-    //         } else {
-    //             console.log(`🔄 [AUTO-REFRESH] Will retry (attempt ${this.failureCount}/${this.maxFailures})`);
-    //         }
-    //     } finally {
-    //         this.isRenewing = false;
-    //     }
-    // }
+    private async shouldRenewToken(): Promise<boolean> {
+        // Podrías implementar lógica para verificar cuánto tiempo queda en el token actual
+        // Por ahora, siempre renovamos según el intervalo
+        return true;
+    }
 
     private shouldForceLogout(): boolean {
         return this.failureCount >= this.maxFailures;
@@ -183,7 +135,6 @@ class AutoRefreshService {
         }, 2000);
     }
 
-    // Método para testing manual - MEJORADO
     async manualRenewal(): Promise<boolean> {
         console.log('🔧 [AUTO-REFRESH] Manual renewal requested');
         

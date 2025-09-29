@@ -6,7 +6,6 @@ export async function verifyAccessToken(request: FastifyRequest, reply: FastifyR
     try {
         console.log('🔐 Auth hook triggered for:', request.url);
         
-        // Leer access token de la cookie
         const accessToken = request.cookies.access_token;
         console.log('🔑 Access token from cookie:', accessToken ? 'PRESENT' : 'MISSING');
         
@@ -20,7 +19,6 @@ export async function verifyAccessToken(request: FastifyRequest, reply: FastifyR
         
         console.log('🔐 Validating external access token...');
         
-        // Usar el nuevo método que no valida con JWT Service
         const user = await authService.validateExternalAccessToken(accessToken);
         
         if (!user) {

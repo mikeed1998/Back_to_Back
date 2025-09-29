@@ -14,13 +14,13 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (user) {
-            console.log('🔐 [APP] User authenticated, starting auto-refresh service (2min cycle)');
+            console.log('🔐 [APP] User authenticated, starting auto-refresh service (5min cycle)');
             autoRefreshService.startAutoRefresh();
             
             const monitorInterval = setInterval(() => {
                 const status = autoRefreshService.getStatus();
                 console.log('📊 [APP] Auto-refresh status:', status);
-            }, 60000);
+            }, 5 * 6 * 1000);
             
             return () => {
                 autoRefreshService.stopAutoRefresh();

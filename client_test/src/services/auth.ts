@@ -6,6 +6,7 @@ import {
     User 
 } from '../types';
 
+
 export interface SessionResponse {
     valid: boolean;
     user?: User;

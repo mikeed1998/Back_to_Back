@@ -32,7 +32,7 @@ model IamUserMapping {
 
 model RefreshToken {
   id        Int      @id @default(autoincrement())
-  token     String   @db.VarChar(700) // suficiente para JWTs largos
+  token     String   @db.VarChar(700) 
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   externalRefreshToken String? @db.VarChar(700)
