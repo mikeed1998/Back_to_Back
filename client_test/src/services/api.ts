@@ -39,10 +39,23 @@ api.interceptors.response.use(
         console.log(`❌ API Error: ${error.response?.status} ${originalRequest?.url}`);
         
         if (error.response?.status === 401) {
+            const errorData = error.response.data as any;
+            
+            // Si el error indica que requiere login, redirigir inmediatamente
+            if (errorData.requires_login) {
+                console.log('🔐 Session expired, redirecting to login');
+                localStorage.removeItem('currentUser');
+                setCurrentUser(null);
+                window.location.href = '/login';
+                return Promise.reject(error);
+            }
+            
             console.log('🔐 Unauthorized access detected');
             
             if (originalRequest._retry) {
                 console.log('❌ Token refresh already attempted, redirecting to login');
+                localStorage.removeItem('currentUser');
+                setCurrentUser(null);
                 window.location.href = '/login';
                 return Promise.reject(error);
             }
@@ -77,6 +90,8 @@ api.interceptors.response.use(
             } catch (renewError) {
                 console.error('❌ Token renewal failed:', renewError);
                 console.log('🔐 Redirecting to login page...');
+                localStorage.removeItem('currentUser');
+                setCurrentUser(null);
                 window.location.href = '/login';
             }
         }
@@ -85,60 +100,117 @@ api.interceptors.response.use(
     }
 );
 
-api.interceptors.response.use(
-    (response: AxiosResponse): AxiosResponse => {
-        console.log(`✅ API Response: ${response.status} ${response.config.url}`);
-        return response;
-    },
-    async (error: AxiosError<ApiError>) => {
-        const originalRequest = error.config as CustomAxiosRequestConfig;
+// api.interceptors.response.use(
+//     (response: AxiosResponse): AxiosResponse => {
+//         console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+//         return response;
+//     },
+//     async (error: AxiosError<ApiError>) => {
+//         const originalRequest = error.config as CustomAxiosRequestConfig;
         
-        console.log(`❌ API Error: ${error.response?.status} ${originalRequest?.url}`);
+//         console.log(`❌ API Error: ${error.response?.status} ${originalRequest?.url}`);
         
-        if (error.response?.status === 401) {
-            console.log('🔐 Unauthorized access detected');
+//         if (error.response?.status === 401) {
+//             console.log('🔐 Unauthorized access detected');
             
-            if (originalRequest._retry) {
-                console.log('❌ Token refresh already attempted, redirecting to login');
-                window.location.href = '/login';
-                return Promise.reject(error);
-            }
+//             if (originalRequest._retry) {
+//                 console.log('❌ Token refresh already attempted, redirecting to login');
+//                 window.location.href = '/login';
+//                 return Promise.reject(error);
+//             }
             
-            originalRequest._retry = true;
+//             originalRequest._retry = true;
             
-            try {
-                console.log('🔄 Attempting to renew session...');
+//             try {
+//                 console.log('🔄 Attempting to renew token...');
                 
-                const sessionResponse = await api.get<{
-                    valid: boolean;
-                    user?: User;
-                    access_token?: string;
-                }>('/auth/session');
+//                 const currentUser = getCurrentUser();
+//                 if (!currentUser) {
+//                     throw new Error('No user data available');
+//                 }
                 
-                if (sessionResponse.data.valid && sessionResponse.data.user) {
-                    console.log('✅ Session renewed successfully');
-                    
-                    setCurrentUser(sessionResponse.data.user);
-                    localStorage.setItem('currentUser', JSON.stringify(sessionResponse.data.user));
-                    
-                    if (originalRequest.headers) {
-                        originalRequest.headers['X-User-ID'] = sessionResponse.data.user.id.toString();
-                    }
-                    
-                    return api(originalRequest);
-                } else {
-                    console.log('❌ Session renewal failed, redirecting to login');
-                    window.location.href = '/login';
-                }
-            } catch (sessionError) {
-                console.error('❌ Session renewal error:', sessionError);
-                window.location.href = '/login';
-            }
-        }
+//                 const renewResponse = await api.post<{
+//                     access_token: string;
+//                     expires_in: number;
+//                 }>('/auth/renew-token', {}, {
+//                     headers: {
+//                         'X-User-ID': currentUser.id.toString()
+//                     }
+//                 });
+                
+//                 console.log('✅ Token renewed successfully');
+                
+//                 if (originalRequest.headers) {
+//                     originalRequest.headers['X-User-ID'] = currentUser.id.toString();
+//                 }
+                
+//                 return api(originalRequest);
+                
+//             } catch (renewError) {
+//                 console.error('❌ Token renewal failed:', renewError);
+//                 console.log('🔐 Redirecting to login page...');
+//                 window.location.href = '/login';
+//             }
+//         }
         
-        return Promise.reject(error);
-    }
-);
+//         return Promise.reject(error);
+//     }
+// );
+
+// api.interceptors.response.use(
+//     (response: AxiosResponse): AxiosResponse => {
+//         console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+//         return response;
+//     },
+//     async (error: AxiosError<ApiError>) => {
+//         const originalRequest = error.config as CustomAxiosRequestConfig;
+        
+//         console.log(`❌ API Error: ${error.response?.status} ${originalRequest?.url}`);
+        
+//         if (error.response?.status === 401) {
+//             console.log('🔐 Unauthorized access detected');
+            
+//             if (originalRequest._retry) {
+//                 console.log('❌ Token refresh already attempted, redirecting to login');
+//                 window.location.href = '/login';
+//                 return Promise.reject(error);
+//             }
+            
+//             originalRequest._retry = true;
+            
+//             try {
+//                 console.log('🔄 Attempting to renew session...');
+                
+//                 const sessionResponse = await api.get<{
+//                     valid: boolean;
+//                     user?: User;
+//                     access_token?: string;
+//                 }>('/auth/session');
+                
+//                 if (sessionResponse.data.valid && sessionResponse.data.user) {
+//                     console.log('✅ Session renewed successfully');
+                    
+//                     setCurrentUser(sessionResponse.data.user);
+//                     localStorage.setItem('currentUser', JSON.stringify(sessionResponse.data.user));
+                    
+//                     if (originalRequest.headers) {
+//                         originalRequest.headers['X-User-ID'] = sessionResponse.data.user.id.toString();
+//                     }
+                    
+//                     return api(originalRequest);
+//                 } else {
+//                     console.log('❌ Session renewal failed, redirecting to login');
+//                     window.location.href = '/login';
+//                 }
+//             } catch (sessionError) {
+//                 console.error('❌ Session renewal error:', sessionError);
+//                 window.location.href = '/login';
+//             }
+//         }
+        
+//         return Promise.reject(error);
+//     }
+// );
 
 export const proactivelyRenewToken = async (): Promise<boolean> => {
     if (renewalInProgress) return true;

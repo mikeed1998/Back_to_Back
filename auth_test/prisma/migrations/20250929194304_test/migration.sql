@@ -26,8 +26,9 @@ CREATE TABLE `iam_user_mappings` (
 -- CreateTable
 CREATE TABLE `refresh_tokens` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `token` VARCHAR(512) NOT NULL,
+    `token` VARCHAR(700) NOT NULL,
     `userId` INTEGER NOT NULL,
+    `externalRefreshToken` VARCHAR(700) NULL,
     `expiresAt` DATETIME(3) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 

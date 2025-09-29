@@ -18,11 +18,13 @@ export async function verifyAccessToken(request: FastifyRequest, reply: FastifyR
         const container = (request as any).diContainer;
         const authService = container.resolve<AuthService>('authService');
         
-        console.log('🔐 Validating access token...');
-        const user = await authService.validateAccessToken(accessToken);
+        console.log('🔐 Validating external access token...');
+        
+        // Usar el nuevo método que no valida con JWT Service
+        const user = await authService.validateExternalAccessToken(accessToken);
         
         if (!user) {
-            console.log('❌ Invalid access token, trying to refresh...');
+            console.log('❌ Invalid access token');
             return reply.code(401).send({ message: 'Invalid or expired token' });
         }
 

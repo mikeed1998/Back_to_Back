@@ -4,51 +4,71 @@ import axios, { AxiosInstance } from 'axios';
 export class HttpClient {
 	private instance: AxiosInstance;
 
-	constructor(baseURL: string) {
-		console.log('🔗 Creating HttpClient with baseURL:', baseURL);
-		
-		this.instance = axios.create({
-			baseURL,
-			timeout: 5000,
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			family: 4,
-		});
+	constructor(baseURL: string, private clientId?: string, private clientSecret?: string) {
+        console.log('🔗 Creating HttpClient with baseURL:', baseURL);
+        console.log('🔑 Client ID:', clientId ? 'PRESENT' : 'MISSING');
+        console.log('🔑 Client Secret:', clientSecret ? 'PRESENT' : 'MISSING');
+        
+        this.instance = axios.create({
+            baseURL,
+            timeout: 10000,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-client-id': clientId,
+                'x-client-secret': clientSecret
+            },
+            family: 4,
+        });
 
-		this.setupInterceptors();
-	}
+        this.setupInterceptors();
+    }
 
 	private setupInterceptors() {
 		this.instance.interceptors.request.use(
-			(config:any) => {
+			(config: any) => {
 				console.log(`➡️  REQUEST: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+				console.log(`🔑 Headers:`, {
+					'x-client-id': config.headers['x-client-id'] ? 'PRESENT' : 'MISSING',
+					'x-client-secret': config.headers['x-client-secret'] ? 'PRESENT' : 'MISSING'
+				});
+				console.log(`📦 Body:`, {
+					username: config.data?.username,
+					password: config.data?.password ? '***' : 'MISSING'
+				});
 				return config;
 			},
-			(error:any) => {
+			(error: any) => {
 				console.error('❌ REQUEST ERROR:', error.message);
 				return Promise.reject(error);
 			}
-			);
+		);
 
-			this.instance.interceptors.response.use(
-			(response:any) => {
+		this.instance.interceptors.response.use(
+			(response: any) => {
 				console.log(`⬅️  RESPONSE: ${response.status} ${response.config.url}`);
 				return response;
 			},
-			(error:any) => {
+			(error: any) => {
 				console.error('❌ RESPONSE ERROR:', error.message);
+				
 				if (error.code === 'ECONNREFUSED') {
-				console.error('❌ Connection refused - is the target app running?');
+					console.error('❌ Connection refused - is the external auth service running?');
+					error.message = 'Authentication service unavailable';
 				} else if (error.response) {
-				console.error('❌ Response status:', error.response.status);
-				console.error('❌ Response data:', error.response.data);
+					console.error('❌ Response status:', error.response.status);
+					console.error('❌ Response data:', error.response.data);
+					
+					// Para errores 404, mejorar el mensaje
+					if (error.response.status === 404) {
+						error.message = 'Invalid email or password';
+					}
 				}
+				
 				return Promise.reject(error);
 			}
 		);
 	}
-
+	
 	async get<T>(url: string): Promise<T> {
 		try {
 			console.log(`📡 GET: ${url}`);

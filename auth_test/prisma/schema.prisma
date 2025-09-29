@@ -31,14 +31,15 @@ model IamUserMapping {
 }
 
 model RefreshToken {
-    id        Int      @id @default(autoincrement())
-    token     String   @db.VarChar(512)
-    userId    Int
-    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    expiresAt DateTime
-    createdAt DateTime @default(now())
-    
-    @@index([token])
-    @@unique([userId])
-    @@map("refresh_tokens")
+  id        Int      @id @default(autoincrement())
+  token     String   @db.VarChar(700) // suficiente para JWTs largos
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  externalRefreshToken String? @db.VarChar(700)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([token])
+  @@unique([userId])
+  @@map("refresh_tokens")
 }

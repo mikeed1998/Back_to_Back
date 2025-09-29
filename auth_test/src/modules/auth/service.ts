@@ -20,28 +20,80 @@ export class AuthService {
 		private jwtService: JWTService
 	) {}
 
-	async login(credentials: LoginCredentials): Promise<AuthResponse & { user: any }> {
+async login(credentials: LoginCredentials): Promise<AuthResponse & { user: any }> {
     try {
-        console.log('🔐 Attempting login for:', credentials.email);
+        console.log('🔐 Attempting login with external auth...');
         
-        // 1. Autenticar con IAM Backend
-        const iamResponse = await this.httpClient.post<{
-            user: UserFromIAM;
-            access_token: string;
-            refresh_token: string;
-            expires_in: number;
-        }>('/users/authenticate', credentials);
+        // 1. Preparar payload para backend externo
+        const externalPayload = {
+            username: credentials.email,
+            password: credentials.password
+        };
 
-        console.log('✅ Authentication successful with IAM backend');
-        console.log('👤 IAM User ID:', iamResponse.user.id);
+        console.log('📤 Sending to external auth:', { 
+            username: externalPayload.username, 
+            password: '***' 
+        });
         
-        // 2. Buscar mapeo existente
-        const existingAuthId = await this.iamMappingRepository.findAuthUserIdByIamId(iamResponse.user.id);
+        // 2. Autenticar con backend externo
+        let externalResponse;
+        try {
+            externalResponse = await this.httpClient.post<ExternalAuthResponse>(
+                '/api/auth/login-username', 
+                externalPayload
+            );
+        } catch (error: any) {
+            console.error('❌ External auth request failed:', error.message);
+            
+            // Manejar diferentes tipos de errores
+            if (error.response) {
+                // El backend externo respondió con un error
+                const status = error.response.status;
+                const data = error.response.data;
+                
+                console.error('❌ External auth error response:', { status, data });
+                
+                if (status === 404) {
+                    throw new Error('Invalid email or password');
+                } else if (status === 401) {
+                    throw new Error('Invalid email or password');
+                } else if (status >= 500) {
+                    throw new Error('Authentication service unavailable');
+                } else {
+                    throw new Error('Authentication failed');
+                }
+            } else if (error.request) {
+                // No se recibió respuesta del backend externo
+                console.error('❌ No response from external auth service');
+                throw new Error('Authentication service unavailable');
+            } else {
+                // Error en la configuración de la solicitud
+                console.error('❌ Request configuration error:', error.message);
+                throw new Error('Authentication failed');
+            }
+        }
+
+        // 3. Verificar que la respuesta tenga la estructura esperada
+        if (!externalResponse || !externalResponse.user || !externalResponse.access_token) {
+            console.error('❌ Invalid response from external auth:', externalResponse);
+            throw new Error('Invalid response from authentication service');
+        }
+
+        console.log('✅ External authentication successful');
+        console.log('👤 External User:', externalResponse.user.email);
+        console.log('🔑 Access token received:', externalResponse.access_token ? 'YES' : 'NO');
+        console.log('🔄 Refresh token received:', externalResponse.refresh_token ? 'YES' : 'NO');
+        
+        // 4. Convertir UUID string a número para mapeo interno
+        const iamUserId = this.hashStringToNumber(externalResponse.user.id);
+        console.log('🆔 Converted UUID to numeric ID:', iamUserId);
+        
+        // 5. Buscar mapeo existente
+        const existingAuthId = await this.iamMappingRepository.findAuthUserIdByIamId(iamUserId);
         let user;
         
         if (existingAuthId) {
-            // Usuario ya existe en Auth Backend
-            console.log('🔍 Found existing mapping, Auth User ID:', existingAuthId);
+            // Usuario ya existe
             user = await this.authRepository.findUserById(existingAuthId);
             
             if (!user) {
@@ -49,73 +101,45 @@ export class AuthService {
             }
             
             // Actualizar datos si es necesario
-            if (user.name !== iamResponse.user.name || user.email !== iamResponse.user.email) {
+            const fullName = `${externalResponse.user.first_name} ${externalResponse.user.last_name}`;
+            if (user.name !== fullName || user.email !== externalResponse.user.email) {
                 user = await this.authRepository.updateUser(user.id, {
-                    name: iamResponse.user.name,
-                    email: iamResponse.user.email
+                    name: fullName,
+                    email: externalResponse.user.email
                 });
-            }
-
-            // 3. VERIFICAR SI YA EXISTE UN REFRESH TOKEN VÁLIDO
-            const existingRefreshToken = await this.refreshTokenRepository.findRefreshTokenByUserId(user.id);
-            if (existingRefreshToken) {
-                console.log('🔑 Existing refresh token found, validating...');
-                
-                try {
-                    // Validar el refresh token existente con IAM
-                    const validation = await this.httpClient.post<{
-                        valid: boolean;
-                    }>('/users/validate-refresh-token', { 
-                        refresh_token: existingRefreshToken.token 
-                    });
-
-                    if (validation.valid) {
-                        console.log('✅ Existing refresh token is still valid, REUSING IT');
-                        
-                        // USAR EL REFRESH TOKEN EXISTENTE en lugar del nuevo
-                        iamResponse.refresh_token = existingRefreshToken.token;
-                    } else {
-                        console.log('⚠️ Existing refresh token invalid, using new one');
-                    }
-                } catch (error) {
-                    console.log('⚠️ Error validating existing token, using new one');
-                }
             }
         } else {
             // Nuevo usuario - crear en Auth Backend
             console.log('👥 Creating new user in auth database...');
+            const fullName = `${externalResponse.user.first_name} ${externalResponse.user.last_name}`;
             user = await this.authRepository.createUser({
-                email: iamResponse.user.email,
-                name: iamResponse.user.name
+                email: externalResponse.user.email,
+                name: fullName
             });
             
             // Crear mapeo de IDs
-            console.log('🔄 Creating IAM mapping:', iamResponse.user.id, '→', user.id);
-            await this.iamMappingRepository.createMapping(iamResponse.user.id, user.id);
+            console.log('🔄 Creating IAM mapping:', iamUserId, '→', user.id);
+            await this.iamMappingRepository.createMapping(iamUserId, user.id);
         }
 
-        // 4. SOLO actualizar refresh token si es diferente al existente
-        const existingToken = await this.refreshTokenRepository.findRefreshTokenByUserId(user.id);
-        if (!existingToken || existingToken.token !== iamResponse.refresh_token) {
-            console.log('💾 Saving/updating refresh token in database...');
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 7);
-            
-            await this.refreshTokenRepository.createOrUpdateRefreshToken(
-                user.id, 
-                iamResponse.refresh_token, 
-                expiresAt
-            );
-        } else {
-            console.log('✅ Refresh token unchanged, skipping database update');
-        }
+        // 6. Guardar refresh_token externo en BD
+        console.log('💾 Saving external refresh token in database...');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 días
+        
+        await this.refreshTokenRepository.createOrUpdateRefreshToken(
+            user.id, 
+            externalResponse.refresh_token, // Token interno
+            expiresAt,
+            externalResponse.refresh_token // Token externo
+        );
 
         console.log('✅ Login process completed successfully');
 
         return {
-            access_token: iamResponse.access_token,
-            refresh_token: iamResponse.refresh_token,
-            expires_in: iamResponse.expires_in,
+            access_token: externalResponse.access_token,
+            refresh_token: externalResponse.refresh_token,
+            expires_in: 120, // 2 minutos para testing
             user: {
                 id: user.id,
                 email: user.email,
@@ -127,8 +151,123 @@ export class AuthService {
         
     } catch (error: any) {
         console.error('❌ Login process failed:', error.message);
-        throw new Error('Invalid email or password');
+        // Re-lanzar el error para que el controlador lo maneje
+        throw error;
     }
+}
+
+// async login(credentials: LoginCredentials): Promise<AuthResponse & { user: any }> {
+//     try {
+//         console.log('🔐 Attempting login with external auth...');
+        
+//         // 1. Preparar payload para backend externo
+//         const externalPayload = {
+//             username: credentials.email,
+//             password: credentials.password
+//         };
+
+//         console.log('📤 Sending to external auth:', { 
+//             username: externalPayload.username, 
+//             password: '***' 
+//         });
+        
+//         // 2. Autenticar con backend externo
+//         const externalResponse = await this.httpClient.post<ExternalAuthResponse>(
+//             '/api/auth/login-username', 
+//             externalPayload
+//         );
+
+//         console.log('✅ External authentication successful');
+//         console.log('👤 External User:', externalResponse.user.email);
+//         console.log('🔑 Access token received:', externalResponse.access_token ? 'YES' : 'NO');
+//         console.log('🔄 Refresh token received:', externalResponse.refresh_token ? 'YES' : 'NO');
+        
+//         // 3. Convertir UUID string a número para mapeo interno
+//         // Usaremos un hash simple del UUID para crear un ID numérico
+//         const iamUserId = this.hashStringToNumber(externalResponse.user.id);
+//         console.log('🆔 Converted UUID to numeric ID:', iamUserId);
+        
+//         // 4. Buscar mapeo existente
+//         const existingAuthId = await this.iamMappingRepository.findAuthUserIdByIamId(iamUserId);
+//         let user;
+        
+//         if (existingAuthId) {
+//             // Usuario ya existe
+//             user = await this.authRepository.findUserById(existingAuthId);
+            
+//             if (!user) {
+//                 throw new Error('User mapping exists but user not found');
+//             }
+            
+//             // Actualizar datos si es necesario
+//             const fullName = `${externalResponse.user.first_name} ${externalResponse.user.last_name}`;
+//             if (user.name !== fullName || user.email !== externalResponse.user.email) {
+//                 user = await this.authRepository.updateUser(user.id, {
+//                     name: fullName,
+//                     email: externalResponse.user.email
+//                 });
+//             }
+//         } else {
+//             // Nuevo usuario - crear en Auth Backend
+//             console.log('👥 Creating new user in auth database...');
+//             const fullName = `${externalResponse.user.first_name} ${externalResponse.user.last_name}`;
+//             user = await this.authRepository.createUser({
+//                 email: externalResponse.user.email,
+//                 name: fullName
+//             });
+            
+//             // Crear mapeo de IDs
+//             console.log('🔄 Creating IAM mapping:', iamUserId, '→', user.id);
+//             await this.iamMappingRepository.createMapping(iamUserId, user.id);
+//         }
+
+//         // 5. Guardar refresh_token externo en BD
+//         console.log('💾 Saving external refresh token in database...');
+//         const expiresAt = new Date();
+//         expiresAt.setDate(expiresAt.getDate() + 7); // 7 días
+        
+//         await this.refreshTokenRepository.createOrUpdateRefreshToken(
+//             user.id, 
+//             externalResponse.refresh_token, // Token interno
+//             expiresAt,
+//             externalResponse.refresh_token // Token externo
+//         );
+
+//         console.log('✅ Login process completed successfully');
+
+//         return {
+//             access_token: externalResponse.access_token,
+//             refresh_token: externalResponse.refresh_token,
+//             expires_in: 120, // 2 minutos para testing
+//             user: {
+//                 id: user.id,
+//                 email: user.email,
+//                 name: user.name,
+//                 createdAt: user.createdAt,
+//                 updatedAt: user.updatedAt
+//             }
+//         };
+        
+//     } catch (error: any) {
+//         console.error('❌ Login process failed:', error.message);
+//         if (error.response) {
+//             console.error('❌ External auth response:', error.response.data);
+//             console.error('❌ External auth status:', error.response.status);
+//         }
+//         throw new Error('Invalid email or password');
+//     }
+// }
+
+// Método auxiliar para convertir UUID string a número
+
+private hashStringToNumber(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
 }
 
     async validateAccessToken(accessToken: string): Promise<User | null> {
@@ -161,6 +300,157 @@ export class AuthService {
         }
     }
 
+async validateExternalAccessToken(accessToken: string): Promise<User | null> {
+    try {
+        console.log('🔐 [AUTH SERVICE] Validating external access token');
+        
+        // Decodificar el token JWT externo sin validar la firma
+        const decoded = this.decodeExternalToken(accessToken);
+        console.log('📋 [AUTH SERVICE] Decoded external token:', decoded);
+        
+        if (!decoded || !decoded.id) {
+            console.log('❌ Invalid external token structure');
+            return null;
+        }
+
+        // Verificar expiración
+        if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+            console.log('❌ External token expired');
+            return null;
+        }
+
+        // Convertir UUID a ID numérico para buscar en nuestro sistema
+        const iamUserId = this.hashStringToNumber(decoded.id);
+        const authUserId = await this.iamMappingRepository.findAuthUserIdByIamId(iamUserId);
+        
+        if (!authUserId) {
+            console.log('❌ No mapping found for external user ID:', decoded.id);
+            return null;
+        }
+        
+        const user = await this.authRepository.findUserById(authUserId);
+        
+        if (!user) {
+            console.log('❌ User not found in database for Auth ID:', authUserId);
+            return null;
+        }
+
+        console.log('✅ [AUTH SERVICE] User found:', user.email);
+        return user;
+        
+    } catch (error: any) {
+        console.error('❌ [AUTH SERVICE] External token validation failed:', error.message);
+        return null;
+    }
+}
+
+private decodeExternalToken(token: string): any {
+    try {
+        // Decodificar token JWT sin validar firma
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+            throw new Error('Invalid JWT format');
+        }
+        
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        return payload;
+    } catch (error) {
+        console.error('❌ Cannot decode external token:', error.message);
+        return null;
+    }
+}
+
+async refreshAccessToken(authUserId: number): Promise<{ access_token: string; expires_in: number }> {
+    try {
+        console.log('🔄 Refreshing access token for user:', authUserId);
+        
+        // 1. Obtener refresh token de la BD
+        const refreshTokenRecord = await this.refreshTokenRepository.findRefreshTokenByUserId(authUserId);
+        if (!refreshTokenRecord || !refreshTokenRecord.externalRefreshToken) {
+            console.log('❌ No refresh token available in database');
+            throw new Error('No refresh token available');
+        }
+
+        console.log('🔑 Using external refresh token from DB');
+        
+        // 2. Verificar si el refresh token ha expirado
+        const refreshTokenDecoded = this.decodeExternalToken(refreshTokenRecord.externalRefreshToken);
+        if (refreshTokenDecoded && refreshTokenDecoded.exp) {
+            const refreshTokenExpiry = refreshTokenDecoded.exp * 1000;
+            if (refreshTokenExpiry < Date.now()) {
+                console.log('❌ Refresh token expired, cannot renew');
+                await this.refreshTokenRepository.deleteRefreshToken(authUserId);
+                throw new Error('Refresh token expired');
+            }
+        }
+
+        // 3. Llamar al backend externo para renovar
+        let refreshResponse;
+        try {
+            refreshResponse = await this.httpClient.post<ExternalRefreshResponse>(
+                '/api/auth/refresh-token', 
+                {
+                    refresh_token: refreshTokenRecord.externalRefreshToken
+                }
+            );
+        } catch (error: any) {
+            console.error('❌ External refresh request failed:', error.message);
+            
+            if (error.response) {
+                const status = error.response.status;
+                console.error('❌ External refresh error status:', status);
+                
+                if (status === 401 || status === 400) {
+                    console.log('🔄 Refresh token invalid on external service, deleting from DB');
+                    await this.refreshTokenRepository.deleteRefreshToken(authUserId);
+                    throw new Error('Refresh token invalid');
+                }
+            }
+            
+            throw new Error('Unable to connect to authentication service');
+        }
+
+        console.log('✅ External token refresh successful');
+        console.log('📋 Refresh response:', {
+            access_token: refreshResponse.access_token ? 'PRESENT' : 'MISSING',
+            refresh_token: refreshResponse.refresh_token ? 'PRESENT' : 'MISSING',
+            expires_in: refreshResponse.expires_in
+        });
+
+        // 4. Verificar que al menos venga access_token
+        if (!refreshResponse.access_token) {
+            console.error('❌ No access token in response from external service');
+            throw new Error('Invalid response from authentication service');
+        }
+
+        // 5. Manejar el refresh token (puede venir nuevo o no)
+        if (refreshResponse.refresh_token) {
+            console.log('💾 Updating refresh token in database...');
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7);
+            
+            await this.refreshTokenRepository.createOrUpdateRefreshToken(
+                authUserId,
+                refreshResponse.refresh_token, // Token interno
+                expiresAt,
+                refreshResponse.refresh_token  // Token externo
+            );
+            console.log('✅ Refresh token updated in database');
+        } else {
+            console.log('⚠️ No new refresh token in response, keeping existing one');
+            // No hacemos nada, mantenemos el refresh token existente
+        }
+
+        return {
+            access_token: refreshResponse.access_token,
+            expires_in: refreshResponse.expires_in || 900 // 15 minutos por defecto
+        };
+
+    } catch (error: any) {
+        console.error('❌ Token refresh failed:', error.message);
+        throw error;
+    }
+}
     async validateSession(userId?: number, credentials?: LoginCredentials): Promise<{ 
         valid: boolean; 
         user?: User; 

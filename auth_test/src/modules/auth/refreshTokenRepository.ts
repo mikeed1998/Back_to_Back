@@ -11,11 +11,25 @@ export interface RefreshToken {
 export class RefreshTokenRepository {
     constructor(private prisma: PrismaClient) {}
 
-    async createOrUpdateRefreshToken(userId: number, token: string, expiresAt: Date) {
+    async createOrUpdateRefreshToken(
+        userId: number, 
+        token: string, 
+        expiresAt: Date,
+        externalRefreshToken?: string
+    ) {
         return this.prisma.refreshToken.upsert({
             where: { userId },
-            update: { token, expiresAt },
-            create: { userId, token, expiresAt }
+            update: { 
+                token, 
+                expiresAt,
+                externalRefreshToken 
+            },
+            create: { 
+                userId, 
+                token, 
+                expiresAt,
+                externalRefreshToken 
+            }
         });
     }
 
@@ -25,6 +39,7 @@ export class RefreshTokenRepository {
             include: { user: true }
         });
     }
+
 
     async deleteRefreshToken(userId: number) {
         await this.prisma.refreshToken.deleteMany({

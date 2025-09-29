@@ -29,11 +29,11 @@ export interface AuthResponse {
 }
 
 export interface UserFromIAM {
-	id: number;
-	email: string;
-	name: string;
-	createdAt: string;
-	updatedAt: string;
+    id: number;
+    email: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface RefreshTokenValidation {
@@ -43,4 +43,33 @@ export interface RefreshTokenValidation {
 		email: string;
 		name: string;
 	};
+}
+
+export interface ExternalUser {
+    id: string;  // UUID string
+    code: string;
+    email: string;
+    personal_email: string;
+    phone_number: string;
+    image: string | null;
+    first_name: string;
+    last_name: string;
+    is_active: boolean;
+    company: {
+        id: string;
+        name: string;
+    };
+}
+
+export interface ExternalAuthResponse {
+    message: string;
+    user: ExternalUser;
+    access_token: string;
+    refresh_token: string;
+}
+
+export interface ExternalRefreshResponse {
+    access_token: string;
+    refresh_token?: string;
+    expires_in?: number;
 }
